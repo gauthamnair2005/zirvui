@@ -17,6 +17,10 @@
 #define PANEL_BT_C    0xFF0066FF
 
 static uint32_t fb_w, fb_h, fb_stride;
+
+/* Forward declarations for cos/sin lookup tables */
+static int cos_lookup(int deg);
+static int sin_lookup(int deg);
 static uint8_t  fb_bpp;
 
 static void put_pixel(void *fb, uint32_t x, uint32_t y, uint32_t color)
