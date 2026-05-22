@@ -15,7 +15,7 @@ CFLAGS := \
     -mno-mmx -mno-sse -mno-sse2 \
     -Wall -Wextra -O2 \
     -I../libs/zirvlibc/include \
-    -I../zirvdisplayjet/include
+    -I../zirvflux/include
 
 LDFLAGS := \
     -nostdlib \
@@ -35,6 +35,8 @@ LIBC_SRCS := \
 LIBC_BUILD := ../build/zirvui-libc
 LIBC_OBJS := $(patsubst ../libs/zirvlibc/src/%.c,$(LIBC_BUILD)/%.o,$(LIBC_SRCS))
 
+ZIRVFLUX_LIB := ../zirvflux/libzirvflux.a
+
 SRCS := src/main.c src/crt0.asm
 OBJS := src/main.o src/crt0.o
 
@@ -44,7 +46,7 @@ TARGET := zirvui.elf
 
 all: $(TARGET)
 
-$(TARGET): $(OBJS) $(LIBC_OBJS)
+$(TARGET): $(OBJS) $(LIBC_OBJS) $(ZIRVFLUX_LIB)
 	$(LD) $(LDFLAGS) -o $@ $^
 
 %.o: %.c
