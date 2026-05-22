@@ -190,6 +190,165 @@ static void fill_rect(uint32_t *fb, uint32_t fb_w, uint32_t fb_h,
     }
 }
 
+static void put_px(uint32_t *fb, uint32_t fb_w, uint32_t fb_h,
+                   int x, int y, uint32_t color)
+{
+    if (x < 0 || y < 0 || x >= (int)fb_w || y >= (int)fb_h) return;
+    fb[(uint32_t)y * fb_w + (uint32_t)x] = color;
+}
+
+static int in_round_rect(int px, int py, int x, int y, int w, int h, int r)
+{
+    if (w <= 0 || h <= 0) return 0;
+    if (px < x || py < y || px >= x + w || py >= y + h) return 0;
+    if (r <= 0) return 1;
+    if (r > w / 2) r = w / 2;
+    if (r > h / 2) r = h / 2;
+
+    int left = x + r;
+    int right = x + w - r - 1;
+    int top = y + r;
+    int bottom = y + h - r - 1;
+
+    if ((px >= left && px <= right) || (py >= top && py <= bottom)) return 1;
+
+    int cx = (px < left) ? left : right;
+    int cy = (py < top) ? top : bottom;
+    int dx = px - cx;
+    int dy = py - cy;
+    return (dx * dx + dy * dy) <= (r * r);
+}
+
+static void fill_round_rect(uint32_t *fb, uint32_t fb_w, uint32_t fb_h,
+                            int x, int y, int w, int h, int r, uint32_t color)
+{
+    if (w <= 0 || h <= 0) return;
+    for (int row = 0; row < h; row++) {
+        int py = y + row;
+        if (py < 0 || py >= (int)fb_h) continue;
+        for (int col = 0; col < w; col++) {
+            int px = x + col;
+            if (px < 0 || px >= (int)fb_w) continue;
+            if (!in_round_rect(px, py, x, y, w, h, r)) continue;
+            fb[(uint32_t)py * fb_w + (uint32_t)px] = color;
+        }
+    }
+}
+
+static void stroke_round_rect(uint32_t *fb, uint32_t fb_w, uint32_t fb_h,
+                              int x, int y, int w, int h, int r, uint32_t color)
+{
+    if (w < 2 || h < 2) return;
+    int inner_r = r - 1;
+    for (int row = 0; row < h; row++) {
+        int py = y + row;
+        if (py < 0 || py >= (int)fb_h) continue;
+        for (int col = 0; col < w; col++) {
+            int px = x + col;
+            if (px < 0 || px >= (int)fb_w) continue;
+            if (!in_round_rect(px, py, x, y, w, h, r)) continue;
+            if (in_round_rect(px, py, x + 1, y + 1, w - 2, h - 2, inner_r)) continue;
+            fb[(uint32_t)py * fb_w + (uint32_t)px] = color;
+        }
+    }
+}
+
+static void draw_line(uint32_t *fb, uint32_t fb_w, uint32_t fb_h,
+                      int x0, int y0, int x1, int y1, uint32_t color)
+{
+    int dx = (x1 > x0) ? (x1 - x0) : (x0 - x1);
+    int sx = (x0 < x1) ? 1 : -1;
+    int dy = (y1 > y0) ? (y1 - y0) : (y0 - y1);
+    int sy = (y0 < y1) ? 1 : -1;
+    int err = (dx > dy ? dx : -dy) / 2;
+    for (;;) {
+        put_px(fb, fb_w, fb_h, x0, y0, color);
+        if (x0 == x1 && y0 == y1) break;
+        int e2 = err;
+        if (e2 > -dx) { err -= dy; x0 += sx; }
+        if (e2 < dy) { err += dx; y0 += sy; }
+    }
+}
+
+static void fill_circle(uint32_t *fb, uint32_t fb_w, uint32_t fb_h,
+                        int cx, int cy, int r, uint32_t color)
+{
+    if (r <= 0) return;
+    int r2 = r * r;
+    for (int y = -r; y <= r; y++) {
+        for (int x = -r; x <= r; x++) {
+            if (x * x + y * y <= r2)
+                put_px(fb, fb_w, fb_h, cx + x, cy + y, color);
+        }
+    }
+}
+
+enum {
+    ICON_TERMINAL = 0,
+    ICON_CALCULATOR,
+    ICON_ABOUT,
+    ICON_FILES,
+    ICON_SETTINGS,
+};
+
+static void draw_icon_tile(uint32_t *fb, uint32_t fb_w, uint32_t fb_h,
+                           int x, int y, int size, int kind, int hovered)
+{
+    int r = size / 4;
+    uint32_t base_colors[] = {
+        0xFF2A5ADFu, 0xFF4A7ADCu, 0xFF3C9B3Cu, 0xFF8A5ADCu, 0xFFCC8844u,
+    };
+    uint32_t base = base_colors[kind % 5];
+    if (hovered) base = blend(0xFFFFFFFFu, base, 40);
+    fill_round_rect(fb, fb_w, fb_h, x, y, size, size, r, base);
+    stroke_round_rect(fb, fb_w, fb_h, x, y, size, size, r, 0xFF0A1A52u);
+
+    int inset = size / 4;
+    uint32_t glyph = 0xFFEFEFEFu;
+    switch (kind) {
+        case ICON_TERMINAL:
+            fill_rect(fb, fb_w, fb_h, x + inset, y + inset, size - inset * 2, size - inset * 2, 0xFF1A1A2Eu);
+            draw_line(fb, fb_w, fb_h, x + inset + 3, y + size / 2,
+                      x + inset + 9, y + size / 2 + 4, glyph);
+            draw_line(fb, fb_w, fb_h, x + inset + 3, y + size / 2,
+                      x + inset + 9, y + size / 2 - 4, glyph);
+            fill_rect(fb, fb_w, fb_h, x + inset + 11, y + size / 2 + 4, size / 4, 2, glyph);
+            break;
+        case ICON_CALCULATOR: {
+            int dot = size / 6;
+            for (int row = 0; row < 3; row++) {
+                for (int col = 0; col < 3; col++) {
+                    int px = x + inset + col * (dot + 2);
+                    int py = y + inset + row * (dot + 2);
+                    fill_round_rect(fb, fb_w, fb_h, px, py, dot, dot, 2, glyph);
+                }
+            }
+        } break;
+        case ICON_ABOUT: {
+            int cx = x + size / 2;
+            int cy = y + size / 2;
+            fill_circle(fb, fb_w, fb_h, cx, cy, size / 3, glyph);
+            fill_rect(fb, fb_w, fb_h, cx - 1, cy - 4, 3, 8, base);
+            fill_rect(fb, fb_w, fb_h, cx - 1, cy - 8, 3, 2, base);
+        } break;
+        case ICON_FILES:
+            fill_rect(fb, fb_w, fb_h, x + inset - 2, y + inset - 2, size / 2, size / 4, glyph);
+            fill_rect(fb, fb_w, fb_h, x + inset - 4, y + inset + 2, size - inset * 2 + 8, size - inset * 2, glyph);
+            fill_rect(fb, fb_w, fb_h, x + inset, y + inset + 6, size - inset * 2, size - inset * 2 - 6, 0xFFC8D8FFu);
+            break;
+        case ICON_SETTINGS: {
+            int cx = x + size / 2;
+            int cy = y + size / 2;
+            fill_circle(fb, fb_w, fb_h, cx, cy, size / 4, glyph);
+            fill_circle(fb, fb_w, fb_h, cx, cy, size / 7, base);
+            draw_line(fb, fb_w, fb_h, cx - size / 3, cy, cx + size / 3, cy, glyph);
+            draw_line(fb, fb_w, fb_h, cx, cy - size / 3, cx, cy + size / 3, glyph);
+        } break;
+        default:
+            break;
+    }
+}
+
 static void draw_char(uint32_t *fb, uint32_t fb_w, uint32_t fb_h,
                       int x, int y, char c, uint32_t color)
 {
@@ -512,13 +671,28 @@ static void render_frame(void)
     for (int ly = 4; ly < TASKBAR_H - 4; ly++)
         fb32[(uint32_t)(tb_y + ly) * w + (uint32_t)(sep_x + 1)] = 0xFF3A6ABAu;
 
+    /* ── Quick-launch icons ────────────────────────────────────────────── */
+    int icon_size = 16 * g_font_scale;
+    if (icon_size > TASKBAR_H - 6) icon_size = TASKBAR_H - 6;
+    if (icon_size < 14) icon_size = 14;
+    int launch_gap = 6;
+    int launch_x = sep_x + 6;
+    int launch_y = tb_y + (TASKBAR_H - icon_size) / 2;
+    int launch_icons[] = { ICON_TERMINAL, ICON_FILES, ICON_SETTINGS };
+    int launch_count = (int)(sizeof(launch_icons) / sizeof(launch_icons[0]));
+    for (int i = 0; i < launch_count; i++) {
+        int lx = launch_x + i * (icon_size + launch_gap);
+        draw_icon_tile(fb32, w, h, lx, launch_y, icon_size, launch_icons[i],
+                       g_launcher_hover == i);
+    }
+
     /* ── Open app taskbar button (only when an app is running) ──────────── */
     #define APP_BTN_H (TASKBAR_H - 8)
     #define APP_BTN_W 150
     static int g_app_btn_x = 0;
     if (g_active_app >= 0 && !g_showing_desktop) {
         int app_btn_y = tb_y + 4;
-        g_app_btn_x = sep_x + 6;
+        g_app_btn_x = launch_x + launch_count * (icon_size + launch_gap) + 6;
         uint32_t abg = 0xFF4A7ADCu, abg2 = 0xFF2A5ABCu;
         vgrad(fb32, w, h, g_app_btn_x, app_btn_y, APP_BTN_W, APP_BTN_H, abg, abg2);
         for (int l = 0; l < APP_BTN_W; l++) {
@@ -532,7 +706,7 @@ static void render_frame(void)
         draw_text(fb32, w, h, g_app_btn_x + 4, app_btn_y + (APP_BTN_H - FONT_H) / 2,
                   g_app_names[g_active_app], XP_TASKBAR_TEXT);
     } else {
-        g_app_btn_x = sep_x + 6;
+        g_app_btn_x = launch_x + launch_count * (icon_size + launch_gap) + 6;
     }
 
     /* ── System tray: speaker, battery, clock, peek button ──────────────── */
@@ -615,8 +789,14 @@ static void render_frame(void)
                     fb32[(uint32_t)(iy + l) * w + (uint32_t)(mx + MENU_W - 5)] = 0xFF0A5ADFu;
                 }
             }
-            draw_text(fb32, w, h, mx + 16, iy + (MENU_ITEM_H - FONT_H) / 2,
-                      g_app_names[i], i == g_menu_hover ? 0xFF000000u : 0xFF000000u);
+            int menu_icon = 16 * g_font_scale;
+            if (menu_icon > MENU_ITEM_H - 6) menu_icon = MENU_ITEM_H - 6;
+            if (menu_icon < 12) menu_icon = 12;
+            int icon_x = mx + 10;
+            int icon_y = iy + (MENU_ITEM_H - menu_icon) / 2;
+            draw_icon_tile(fb32, w, h, icon_x, icon_y, menu_icon, i, i == g_menu_hover);
+            draw_text(fb32, w, h, mx + 18 + menu_icon, iy + (MENU_ITEM_H - FONT_H) / 2,
+                      g_app_names[i], 0xFF000000u);
         }
         /* Separator + Reboot */
         int sep_y = my + 24 + NUM_APPS * MENU_ITEM_H;
@@ -698,10 +878,18 @@ static void process_mouse(void)
     int tb_y = (int)wh - TASKBAR_H;
 
     /* ── Running-app button hit rect (single button for active app) ──── */
-    #define APP_BTN_X (4 + 90 + 4 + 6)  /* after Start btn + separators */
     #define APP_BTN_WV 150
     #define APP_BTN_HV (TASKBAR_H - 8)
     int aby = tb_y + 4;
+    int icon_size = 16 * g_font_scale;
+    if (icon_size > TASKBAR_H - 6) icon_size = TASKBAR_H - 6;
+    if (icon_size < 14) icon_size = 14;
+    int launch_gap = 6;
+    int launch_x = 4 + 90 + 4 + 6;
+    int launch_y = tb_y + (TASKBAR_H - icon_size) / 2;
+    int launch_icons[] = { APP_TERMINAL, APP_FILES, APP_SETTINGS };
+    int launch_count = (int)(sizeof(launch_icons) / sizeof(launch_icons[0]));
+    int app_btn_x = launch_x + launch_count * (icon_size + launch_gap) + 6;
 
     /* ── Peek button rect ────────────────────────────────────────────── */
     #define PEEK_W 16
@@ -747,10 +935,20 @@ static void process_mouse(void)
         /* ── Hover: Start button ─────────────────────────────────────── */
         g_menu_btn_hover = point_in(nx, ny, 4, tb_y + 3, 90, TASKBAR_H - 6);
 
+        /* ── Hover: quick-launch icons ───────────────────────────────── */
+        g_launcher_hover = -1;
+        for (int i = 0; i < launch_count; i++) {
+            int lx = launch_x + i * (icon_size + launch_gap);
+            if (point_in(nx, ny, lx, launch_y, icon_size, icon_size)) {
+                g_launcher_hover = i;
+                break;
+            }
+        }
+
         /* ── Hover: running app button on taskbar ────────────────────── */
         int app_click = -1;
         if (g_active_app >= 0 && !g_showing_desktop &&
-            point_in(nx, ny, APP_BTN_X, aby, APP_BTN_WV, APP_BTN_HV))
+            point_in(nx, ny, app_btn_x, aby, APP_BTN_WV, APP_BTN_HV))
             app_click = g_active_app;
 
         /* ── Hover: window close button ──────────────────────────────── */
@@ -795,7 +993,13 @@ static void process_mouse(void)
 
         /* ── Clicks ──────────────────────────────────────────────────── */
         if (left_down) {
-            if (g_menu_btn_hover) {
+            if (g_launcher_hover >= 0) {
+                if (g_showing_desktop) g_showing_desktop = 0;
+                g_active_app = launch_icons[g_launcher_hover];
+                g_win_x = 40;
+                g_win_y = 80;
+                g_dirty = 1;
+            } else if (g_menu_btn_hover) {
                 g_menu_open = !g_menu_open;
                 if (g_menu_open) g_showing_desktop = 0;
                 g_dirty = 1;
