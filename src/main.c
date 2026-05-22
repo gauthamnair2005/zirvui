@@ -9,15 +9,37 @@
 typedef zf_mouse_event_t mouse_event_t;
 
 #define PANEL_H    36
+#define TASKBAR_H  42
 #define MAX_W      1920
 #define MAX_H      1080
 #define FONT_W     8
 #define FONT_H     13
-#define MENU_W     160
+#define MENU_W     180
 #define MENU_ITEM_H 28
 #define MAX_MENU_ITEMS 8
 #define BTN_W      120
 #define BTN_H      40
+
+/* XP Blue colour scheme */
+#define XP_TASKBAR_TOP      0xFF3366CCu
+#define XP_TASKBAR_BOTTOM   0xFF0A246Au
+#define XP_START_GREEN      0xFF3C9B3Cu
+#define XP_START_HOVER      0xFF5BBF5Bu
+#define XP_START_GREEN2     0xFF2E7D2Eu
+#define XP_TITLE_TOP        0xFF0A5ADFu
+#define XP_TITLE_BOTTOM     0xFF083E8Cu
+#define XP_TITLE_INACT_TOP  0xFF7B97C5u
+#define XP_TITLE_INACT_BOT  0xFF4B6A96u
+#define XP_CLOSE_BG         0xFFE06B5Cu
+#define XP_CLOSE_HOVER      0xFFFF8C7Cu
+#define XP_CLOSE_X          0xFFFFFFFFu
+#define XP_DESKTOP_TOP      0xFF6FB5E8u
+#define XP_DESKTOP_BOT      0xFF5A9A3Au
+#define XP_WIN_BG           0xFFECE9D8u
+#define XP_WIN_TEXT         0xFF000000u
+#define XP_TASKBAR_TEXT     0xFFFFFFFFu
+#define XP_TITLE_TEXT       0xFFFFFFFFu
+#define XP_BTN_BORDER       0xFFD4D0C8u
 
 static uint8_t compositor_fb[MAX_W * MAX_H * 4];
 static zf_buffer_t g_buf;
@@ -33,7 +55,7 @@ static int g_frame_ms = 16;
 
 /* ── Window dragging state ──────────────────────────────────────────────── */
 static int g_win_x = 40;
-static int g_win_y = 56;
+static int g_win_y = 80;
 static int g_dragging = 0;
 static int g_drag_off_x = 0;
 static int g_drag_off_y = 0;
@@ -300,6 +322,7 @@ static int g_settings_hover = -1;
 #define MENU_BTN_H PANEL_H
 #define MENU_X 0
 #define MENU_TOP (PANEL_H)
+/* MENU_X and MENU_TOP kept for reference; XP-style uses dynamic coords */
 
 static int point_in(int px, int py, int x, int y, int w, int h)
 {
@@ -320,31 +343,24 @@ static void draw_terminal(uint32_t *fb, uint32_t w, uint32_t h,
 static void draw_calculator(uint32_t *fb, uint32_t w, uint32_t h,
                             int x, int y, int cw, int ch)
 {
-    fill_rect(fb, w, h, x, y, cw, ch, 0xFFF0F0F0u);
-    fill_rect(fb, w, h, x + 10, y + 10, cw - 20, 30, 0xFFFFFFFFu);
-    draw_text(fb, w, h, x + cw - 30, y + 14, "0", 0xFF000000u);
-    const char *keys = "789+456-123*0.=/";
-    int kw = 30, kh = 26, gap = 4;
-    int sx = x + 10, sy = y + 50;
-    for (int i = 0; i < 16; i++) {
-        int kx = sx + (i % 4) * (kw + gap);
-        int ky = sy + (i / 4) * (kh + gap);
-        uint32_t kc = (keys[i] >= '0' && keys[i] <= '9') ? 0xFFDDDDDDu : 0xFFFF9933u;
-        fill_rect(fb, w, h, kx, ky, kw, kh, kc);
-        char lbl[2] = {keys[i], 0};
-        draw_text(fb, w, h, kx + 10, ky + 7, lbl, 0xFF000000u);
-    }
+    (void)w; (void)h;
+    fill_rect(fb, w, h, x, y, cw, ch, XP_WIN_BG);
+    draw_text(fb, w, h, x + 10, y + 10, "7  8  9  /", 0xFF333333u);
+    draw_text(fb, w, h, x + 10, y + 30, "4  5  6  *", 0xFF333333u);
+    draw_text(fb, w, h, x + 10, y + 50, "1  2  3  -", 0xFF333333u);
+    draw_text(fb, w, h, x + 10, y + 70, "0  .  =  +", 0xFF333333u);
+    draw_text(fb, w, h, x + 10, y + 100, "__________", 0xFF999999u);
+    draw_text(fb, w, h, x + 10, y + 110, "> 0", 0xFF000000u);
 }
 
 static void draw_about(uint32_t *fb, uint32_t w, uint32_t h,
                        int x, int y, int cw, int ch)
 {
-    fill_rect(fb, w, h, x, y, cw, ch, 0xFF1A1A2Eu);
-    draw_text(fb, w, h, x + 20, y + 20, "Zirvium OS", 0xFFFFFFFFu);
-    draw_text(fb, w, h, x + 20, y + 40, "Version 0.1", 0xFFAAAAAAu);
-    draw_text(fb, w, h, x + 20, y + 60, "DisplayJet compositor", 0xFF8888FFu);
-    draw_text(fb, w, h, x + 20, y + 80, "MAEM encryption active", 0xFF88FF88u);
-    draw_text(fb, w, h, x + 20, y + 100, "Booted via GRUB multiboot2", 0xFFFFCC88u);
+    (void)w; (void)h;
+    fill_rect(fb, w, h, x, y, cw, ch, XP_WIN_BG);
+    draw_text(fb, w, h, x + 20, y + 20, "Zirvium OS v0.1", 0xFF000000u);
+    draw_text(fb, w, h, x + 20, y + 50, "DisplayJet compositor", 0xFF333333u);
+    draw_text(fb, w, h, x + 20, y + 70, "8x13 bitmap font", 0xFF333333u);
     char res[32];
     int rl = 0;
     uint32_t rw = g_info.width, rh = g_info.height;
@@ -354,50 +370,48 @@ static void draw_about(uint32_t *fb, uint32_t w, uint32_t h,
     if (rh >= 100) { res[rl++] = (char)('0' + rh / 100); rh %= 100; }
     res[rl++] = (char)('0' + rh / 10); rh %= 10;
     res[rl++] = (char)('0' + rh); res[rl] = '\0';
-    draw_text(fb, w, h, x + 20, y + 130, "Resolution: ", 0xFFCCCCCCu);
-    draw_text(fb, w, h, x + 110, y + 130, res, 0xFFFFCC88u);
+    draw_text(fb, w, h, x + 20, y + 90, "Resolution:", 0xFF333333u);
+    draw_text(fb, w, h, x + 100, y + 90, res, 0xFF0000CCu);
+    draw_text(fb, w, h, x + 20, y + 130, "ZirvTK: Rust GUI toolkit", 0xFF333333u);
 }
 
 static void draw_files(uint32_t *fb, uint32_t w, uint32_t h,
                        int x, int y, int cw, int ch)
 {
-    fill_rect(fb, w, h, x, y, cw, ch, 0xFF1E1E2Eu);
-    draw_text(fb, w, h, x + 10, y + 10, "File Browser", 0xFFAAAAFFu);
-    draw_text(fb, w, h, x + 10, y + 35, "[DIR]  ..", 0xFF88CCFFu);
-    draw_text(fb, w, h, x + 10, y + 55, "[DIR]  bin", 0xFF88CCFFu);
-    draw_text(fb, w, h, x + 10, y + 75, "[DIR]  etc", 0xFF88CCFFu);
-    draw_text(fb, w, h, x + 10, y + 95, "[DIR]  home", 0xFF88CCFFu);
-    draw_text(fb, w, h, x + 10, y + 115, "[DIR]  usr", 0xFF88CCFFu);
-    draw_text(fb, w, h, x + 10, y + 135, "[FILE] README.md", 0xFFCCCCCCu);
-    draw_text(fb, w, h, x + 10, y + 155, "[FILE] init.bin", 0xFFCCCCCCu);
+    fill_rect(fb, w, h, x, y, cw, ch, XP_WIN_BG);
+    draw_text(fb, w, h, x + 10, y + 10, "[DIR]  ..", 0xFF886600u);
+    draw_text(fb, w, h, x + 10, y + 30, "[DIR]  usr", 0xFF886600u);
+    draw_text(fb, w, h, x + 10, y + 50, "[DIR]  etc", 0xFF886600u);
+    draw_text(fb, w, h, x + 10, y + 70, "[DIR]  home", 0xFF886600u);
+    draw_text(fb, w, h, x + 10, y + 90, "[DIR]  mnt", 0xFF886600u);
+    draw_text(fb, w, h, x + 10, y + 110, "[DIR]  tmp", 0xFF886600u);
+    draw_text(fb, w, h, x + 10, y + 130, "[FILE] README.md", 0xFF333333u);
+    draw_text(fb, w, h, x + 10, y + 150, "[FILE] init.bin", 0xFF333333u);
 }
 
 static void draw_settings(uint32_t *fb, uint32_t w, uint32_t h,
                           int x, int y, int cw, int ch)
 {
-    fill_rect(fb, w, h, x, y, cw, ch, 0xFF2A2A3Eu);
-    draw_text(fb, w, h, x + 20, y + 20, "Display Settings", 0xFFFFFFFFu);
+    fill_rect(fb, w, h, x, y, cw, ch, XP_WIN_BG);
+    draw_text(fb, w, h, x + 20, y + 20, "Display Settings", 0xFF000000u);
 
-    /* Option row: Font size */
     const int row_h = 28;
     int r0_y = y + 50;
-    uint32_t r0c = (g_settings_hover == 0) ? 0xFF3A3A5Eu : 0xFF2A2A3Eu;
+    uint32_t r0c = (g_settings_hover == 0) ? 0xFFC0D8F8u : 0xFFE8E8E0u;
     fill_rect(fb, w, h, x + 4, r0_y, cw - 8, row_h, r0c);
-    draw_text(fb, w, h, x + 20, r0_y + 6, "Font size:", 0xFFCCCCCCu);
+    draw_text(fb, w, h, x + 20, r0_y + 6, "Font size:", 0xFF000000u);
     draw_text(fb, w, h, x + cw - 100, r0_y + 6,
-              g_font_scale > 1 ? "Large" : "Small", 0xFFAAAAFFu);
+              g_font_scale > 1 ? "Large" : "Small", 0xFF000088u);
 
-    /* Option row: Frame rate */
     int r1_y = y + 50 + row_h + 4;
-    uint32_t r1c = (g_settings_hover == 1) ? 0xFF3A3A5Eu : 0xFF2A2A3Eu;
+    uint32_t r1c = (g_settings_hover == 1) ? 0xFFC0D8F8u : 0xFFE8E8E0u;
     fill_rect(fb, w, h, x + 4, r1_y, cw - 8, row_h, r1c);
-    draw_text(fb, w, h, x + 20, r1_y + 6, "Frame rate:", 0xFFCCCCCCu);
+    draw_text(fb, w, h, x + 20, r1_y + 6, "Frame rate:", 0xFF000000u);
     draw_text(fb, w, h, x + cw - 100, r1_y + 6,
-              g_frame_ms <= 16 ? "60 FPS" : "30 FPS", 0xFFAAAAFFu);
+              g_frame_ms <= 16 ? "60 FPS" : "30 FPS", 0xFF000088u);
 
-    /* Hint */
     draw_text(fb, w, h, x + 20, y + ch - 30,
-              "Click an option to toggle", 0xFF666688u);
+              "Click an option to toggle", 0xFF666666u);
 }
 
 static void (*g_app_draw[NUM_APPS])(uint32_t *, uint32_t, uint32_t,
@@ -406,6 +420,28 @@ static void (*g_app_draw[NUM_APPS])(uint32_t *, uint32_t, uint32_t,
     draw_files, draw_settings,
 };
 
+/* ── Helper: draw a vertical gradient rect ────────────────────────────────── */
+static void vgrad(uint32_t *fb, uint32_t w, uint32_t h,
+                  int x, int y, uint32_t rw, uint32_t rh,
+                  uint32_t top_col, uint32_t bot_col)
+{
+    uint8_t tr = (top_col >> 16) & 0xFF, tg = (top_col >> 8) & 0xFF, tb = top_col & 0xFF;
+    uint8_t br = (bot_col >> 16) & 0xFF, bg = (bot_col >> 8) & 0xFF, bb = bot_col & 0xFF;
+    for (uint32_t row = 0; row < rh; row++) {
+        int py = y + (int)row;
+        if (py < 0 || py >= (int)h) continue;
+        uint8_t r = (uint8_t)(tr + ((br - tr) * row) / rh);
+        uint8_t g = (uint8_t)(tg + ((bg - tg) * row) / rh);
+        uint8_t b = (uint8_t)(tb + ((bb - tb) * row) / rh);
+        uint32_t c = 0xFF000000u | ((uint32_t)r << 16) | ((uint32_t)g << 8) | b;
+        for (uint32_t col = 0; col < rw; col++) {
+            int px = x + (int)col;
+            if (px < 0 || px >= (int)w) continue;
+            fb[(uint32_t)py * w + (uint32_t)px] = c;
+        }
+    }
+}
+
 /* ── Render one frame ───────────────────────────────────────────────────── */
 static void render_frame(void)
 {
@@ -413,158 +449,232 @@ static void render_frame(void)
     uint32_t h = g_info.height;
     uint32_t *fb32 = (uint32_t *)compositor_fb;
 
-    /* Gradient background */
+    /* XP Bliss-like desktop background (sky blue → meadow green) */
     for (uint32_t y = 0; y < h; y++) {
-        for (uint32_t x = 0; x < w; x++) {
-            uint32_t off = y * w + x;
-            uint8_t r, g, b;
-            r = (uint8_t)(((x * 35) / w + 18) & 0xFF);
-            g = (uint8_t)((12 + (y * 28) / h) & 0xFF);
-            b = (uint8_t)((28 + ((w - x) * 45) / w) & 0xFF);
-            fb32[off] = (0xFFu << 24) | (r << 16) | (g << 8) | b;
+        uint32_t top_h = h * 2 / 3;
+        uint32_t c;
+        if (y < top_h) {
+            uint8_t r = (uint8_t)(0x6F + ((0x3A - 0x6F) * y) / top_h);
+            uint8_t g = (uint8_t)(0xB5 + ((0x7A - 0xB5) * y) / top_h);
+            uint8_t b = (uint8_t)(0xE8 + ((0x3A - 0xE8) * y) / top_h);
+            c = 0xFF000000u | ((uint32_t)r << 16) | ((uint32_t)g << 8) | b;
+        } else {
+            uint32_t dy = y - top_h;
+            uint32_t bh = h - top_h;
+            uint8_t r = (uint8_t)(0x3A + ((0x2A - 0x3A) * dy) / bh);
+            uint8_t g = (uint8_t)(0x7A + ((0x5A - 0x7A) * dy) / bh);
+            uint8_t b = (uint8_t)(0x3A + ((0x2A - 0x3A) * dy) / bh);
+            c = 0xFF000000u | ((uint32_t)r << 16) | ((uint32_t)g << 8) | b;
         }
+        for (uint32_t x = 0; x < w; x++)
+            fb32[y * w + x] = c;
     }
 
-    /* ── Panel shadow ───────────────────────────────────────────────────── */
-    draw_shadow(fb32, w, h, 0, PANEL_H, (int)w, 6, 4);
+    /* ── Taskbar (bottom) ───────────────────────────────────────────────── */
+    int tb_y = (int)h - TASKBAR_H;
+    vgrad(fb32, w, h, 0, tb_y, w, TASKBAR_H, XP_TASKBAR_TOP, XP_TASKBAR_BOTTOM);
 
-    /* ── Top panel bar ──────────────────────────────────────────────────── */
-    fill_rect(fb32, w, h, 0, 0, w, PANEL_H, 0xFF121220u);
-
-    /* Panel accent line at bottom */
+    /* Taskbar highlight line at top */
     for (uint32_t lx = 0; lx < w; lx++)
-        fb32[(uint32_t)(PANEL_H - 1) * w + lx] = 0xFF333355u;
+        fb32[(uint32_t)tb_y * w + lx] = 0xFF4A7ADCu;
 
-    /* Menu button */
-    uint32_t menu_col = g_menu_btn_hover ? 0xFF2A2A50u : 0xFF181830u;
-    fill_rect(fb32, w, h, MENU_BTN_X, 0, MENU_BTN_W, MENU_BTN_H, menu_col);
-    draw_text(fb32, w, h, MENU_BTN_X + 10, (PANEL_H - FONT_H) / 2,
-              g_menu_open ? "Zirvium ^" : "Zirvium v", 0xFFCCCCDDu);
+    /* Taskbar bevel line at bottom */
+    for (uint32_t lx = 0; lx < w; lx++)
+        fb32[(uint32_t)(tb_y + TASKBAR_H - 1) * w + lx] = 0xFF081844u;
 
-    /* Separator after menu button */
-    for (int ly = 4; ly < PANEL_H - 4; ly++)
-        fb32[(uint32_t)ly * w + (uint32_t)(MENU_BTN_X + MENU_BTN_W)] = 0xFF333355u;
+    /* ── Start button ───────────────────────────────────────────────────── */
+    #define START_BTN_W 90
+    #define START_BTN_H (TASKBAR_H - 6)
+    int sb_x = 4;
+    int sb_y = tb_y + 3;
+    uint32_t sc = g_menu_btn_hover ? XP_START_HOVER : XP_START_GREEN;
+    uint32_t sc2 = g_menu_btn_hover ? XP_START_GREEN : XP_START_GREEN2;
+    vgrad(fb32, w, h, sb_x, sb_y, START_BTN_W, START_BTN_H, sc, sc2);
+    /* Start button border */
+    for (int l = 0; l < START_BTN_W; l++) {
+        fb32[(uint32_t)sb_y * w + (uint32_t)(sb_x + l)] = 0xFFD4FFD4u;
+        fb32[(uint32_t)(sb_y + START_BTN_H - 1) * w + (uint32_t)(sb_x + l)] = 0xFF1A5C1Au;
+    }
+    for (int l = 0; l < START_BTN_H; l++) {
+        fb32[(uint32_t)(sb_y + l) * w + (uint32_t)sb_x] = 0xFFB5E8B5u;
+        fb32[(uint32_t)(sb_y + l) * w + (uint32_t)(sb_x + START_BTN_W - 1)] = 0xFF1A5C1Au;
+    }
+    /* Start button text */
+    draw_text(fb32, w, h, sb_x + 12, sb_y + (START_BTN_H - FONT_H) / 2,
+              g_menu_open ? "Zirvium >>" : "Zirvium", 0xFFFFFFFFu);
 
-    /* Active app name in center */
-    if (g_active_app >= 0) {
-        const char *name = g_app_names[g_active_app];
-        int len = 0;
-        while (name[len]) len++;
-        int tx = ((int)w - len * (FONT_W + 1)) / 2;
-        draw_text(fb32, w, h, tx, (PANEL_H - FONT_H) / 2, name, 0xFFCCCCDDu);
+    /* Separator after start button */
+    int sep_x = sb_x + START_BTN_W + 4;
+    for (int ly = 4; ly < TASKBAR_H - 4; ly++)
+        fb32[(uint32_t)(tb_y + ly) * w + (uint32_t)sep_x] = 0xFF0A1E52u;
+    for (int ly = 4; ly < TASKBAR_H - 4; ly++)
+        fb32[(uint32_t)(tb_y + ly) * w + (uint32_t)(sep_x + 1)] = 0xFF3A6ABAu;
+
+    /* ── Running app buttons ────────────────────────────────────────────── */
+    int app_btn_x = sep_x + 6;
+    #define APP_BTN_H (TASKBAR_H - 8)
+    #define APP_BTN_MAX_W 160
+    #define APP_BTN_MIN_W 60
+    int app_btn_y = tb_y + 4;
+    for (int i = 0; i < NUM_APPS; i++) {
+        int len = 0; while (g_app_names[i][len]) len++;
+        int btn_w = len * (FONT_W + 1) + 16;
+        if (btn_w < APP_BTN_MIN_W) btn_w = APP_BTN_MIN_W;
+        if (btn_w > APP_BTN_MAX_W) btn_w = APP_BTN_MAX_W;
+        uint32_t abg = (i == g_active_app) ? 0xFF4A7ADCu : 0xFF1A3A7Au;
+        uint32_t abg2 = (i == g_active_app) ? 0xFF2A5ABCu : 0xFF0A1A5Au;
+        vgrad(fb32, w, h, app_btn_x, app_btn_y, btn_w, APP_BTN_H, abg, abg2);
+        /* Button bevel */
+        for (int l = 0; l < btn_w; l++) {
+            fb32[(uint32_t)app_btn_y * w + (uint32_t)(app_btn_x + l)] = 0xFF6A9AECu;
+            fb32[(uint32_t)(app_btn_y + APP_BTN_H - 1) * w + (uint32_t)(app_btn_x + l)] = 0xFF081844u;
+        }
+        for (int l = 0; l < APP_BTN_H; l++) {
+            fb32[(uint32_t)(app_btn_y + l) * w + (uint32_t)app_btn_x] = 0xFF5A8ADCu;
+            fb32[(uint32_t)(app_btn_y + l) * w + (uint32_t)(app_btn_x + btn_w - 1)] = 0xFF081844u;
+        }
+        draw_text(fb32, w, h, app_btn_x + 4, app_btn_y + (APP_BTN_H - FONT_H) / 2,
+                  g_app_names[i], XP_TASKBAR_TEXT);
+        /* Store button position for click detection later */
+        (void)0;
+        app_btn_x += btn_w + 4;
+        if (app_btn_x + APP_BTN_MIN_W > (int)w - 120) break;
     }
 
-    /* Close button in panel */
-    if (g_active_app >= 0) {
-        int cx = (int)w - 30;
-        int cy = (PANEL_H - 18) / 2;
-        uint32_t cc = g_close_hover ? 0xFFFF5555u : 0xFF882222u;
-        fill_rect(fb32, w, h, cx, cy, 18, 18, cc);
-        draw_char(fb32, w, h, cx + 5, cy + 3, 'x', 0xFFFFFFFFu);
+    /* ── System tray / Clock ────────────────────────────────────────────── */
+    int tray_right = (int)w - 4;
+    int clock_x = tray_right - 5 * (FONT_W + 1) - 8;
+    int clock_y = tb_y + (TASKBAR_H - FONT_H) / 2;
+    /* Tray background */
+    fill_rect(fb32, w, h, clock_x - 6, tb_y + 2, tray_right - clock_x + 10, TASKBAR_H - 4, 0xFF0A1A52u);
+    /* Tray border */
+    for (int l = 0; l < tray_right - clock_x + 10; l++) {
+        fb32[(uint32_t)(tb_y + 2) * w + (uint32_t)(clock_x - 6 + l)] = 0xFF081844u;
+        fb32[(uint32_t)(tb_y + TASKBAR_H - 3) * w + (uint32_t)(clock_x - 6 + l)] = 0xFF2A4A8Au;
     }
+    draw_clock(fb32, w, h, clock_x, clock_y, XP_TASKBAR_TEXT);
 
-    /* Clock */
-    int clock_x = (int)w - 12 - (5 * (FONT_W + 1));
-    draw_clock(fb32, w, h, clock_x, (PANEL_H - FONT_H) / 2, 0xFF9999AAu);
+    /* ── XP-style Start menu (pops up from taskbar) ─────────────────────── */
+    if (g_menu_open) {
+        int mh = NUM_APPS * MENU_ITEM_H + 48;
+        int my = tb_y - mh;
+        int mx = 4;
+        draw_shadow(fb32, w, h, mx - 2, my - 2, MENU_W + 4, mh + 4, 6);
+        /* Menu background */
+        fill_rect(fb32, w, h, mx, my, MENU_W, mh, 0xFFFFFFFFu);
+        /* Menu border */
+        for (int l = 0; l < MENU_W; l++) {
+            fb32[(uint32_t)my * w + (uint32_t)(mx + l)] = 0xFF0A2A6Au;
+            fb32[(uint32_t)(my + mh - 1) * w + (uint32_t)(mx + l)] = 0xFF0A2A6Au;
+        }
+        for (int l = 0; l < mh; l++) {
+            fb32[(uint32_t)(my + l) * w + (uint32_t)mx] = 0xFF0A2A6Au;
+            fb32[(uint32_t)(my + l) * w + (uint32_t)(mx + MENU_W - 1)] = 0xFF0A2A6Au;
+        }
+        /* User name bar at top */
+        fill_rect(fb32, w, h, mx + 2, my + 2, MENU_W - 4, 20, 0xFF0A2A6Au);
+        draw_text(fb32, w, h, mx + 10, my + 5, "Zirvium User", 0xFFFFFFFFu);
+
+        for (int i = 0; i < NUM_APPS; i++) {
+            int iy = my + 24 + i * MENU_ITEM_H;
+            if (i == g_menu_hover) {
+                fill_rect(fb32, w, h, mx + 4, iy, MENU_W - 8, MENU_ITEM_H, 0xFFD4E0F8u);
+                for (int l = 0; l < MENU_W - 8; l++) {
+                    fb32[(uint32_t)iy * w + (uint32_t)(mx + 4 + l)] = 0xFF0A5ADFu;
+                    fb32[(uint32_t)(iy + MENU_ITEM_H - 1) * w + (uint32_t)(mx + 4 + l)] = 0xFF0A5ADFu;
+                }
+                for (int l = 0; l < MENU_ITEM_H; l++) {
+                    fb32[(uint32_t)(iy + l) * w + (uint32_t)(mx + 4)] = 0xFF0A5ADFu;
+                    fb32[(uint32_t)(iy + l) * w + (uint32_t)(mx + MENU_W - 5)] = 0xFF0A5ADFu;
+                }
+            }
+            draw_text(fb32, w, h, mx + 16, iy + (MENU_ITEM_H - FONT_H) / 2,
+                      g_app_names[i], i == g_menu_hover ? 0xFF000000u : 0xFF000000u);
+        }
+        /* Separator + Reboot */
+        int sep_y = my + 24 + NUM_APPS * MENU_ITEM_H;
+        fill_rect(fb32, w, h, mx + 8, sep_y, MENU_W - 16, 1, 0xFFC0C0C0u);
+        int rby = sep_y + 6;
+        fill_rect(fb32, w, h, mx + 6, rby, MENU_W - 12, MENU_ITEM_H, 0xFFF0F0F0u);
+        draw_text(fb32, w, h, mx + 16, rby + (MENU_ITEM_H - FONT_H) / 2,
+                  "Reboot", 0xFFCC0000u);
+    }
 
     /* ── Desktop launcher grid ──────────────────────────────────────────── */
     if (g_active_app < 0 && !g_menu_open) {
         int cols = 4, gap = 20;
         int total_w = cols * BTN_W + (cols - 1) * gap;
         int sx = ((int)w - total_w) / 2;
-        int sy = (int)(PANEL_H + 100);
-
+        int sy = 80;
         for (int i = 0; i < NUM_APPS; i++) {
             int bx = sx + (i % cols) * (BTN_W + gap);
             int by = sy + (i / cols) * (BTN_H + gap);
-            uint32_t bg = (i == g_launcher_hover) ? 0xFF353560u : 0xFF1E1E38u;
-            fill_rect(fb32, w, h, bx + 2, by + 2, BTN_W, BTN_H, 0x20000000u);
+            uint32_t bg = (i == g_launcher_hover) ? 0xFFD4E0F8u : 0xFFE8E8E0u;
             fill_rect(fb32, w, h, bx, by, BTN_W, BTN_H, bg);
+            /* XP raised button border */
             for (int l = 0; l < BTN_W; l++) {
-                fb32[(uint32_t)by * w + (uint32_t)(bx + l)] = 0xFF666688u;
-                fb32[(uint32_t)(by + BTN_H - 1) * w + (uint32_t)(bx + l)] = 0xFF333355u;
+                fb32[(uint32_t)by * w + (uint32_t)(bx + l)] = 0xFFFFFFFFu;
+                fb32[(uint32_t)(by + BTN_H - 1) * w + (uint32_t)(bx + l)] = 0xFF888888u;
             }
             for (int l = 0; l < BTN_H; l++) {
-                fb32[(uint32_t)(by + l) * w + (uint32_t)bx] = 0xFF555577u;
-                fb32[(uint32_t)(by + l) * w + (uint32_t)(bx + BTN_W - 1)] = 0xFF444466u;
+                fb32[(uint32_t)(by + l) * w + (uint32_t)bx] = 0xFFFFFFFFu;
+                fb32[(uint32_t)(by + l) * w + (uint32_t)(bx + BTN_W - 1)] = 0xFF888888u;
             }
             int len = 0;
             while (g_app_names[i][len]) len++;
             int tx = bx + (BTN_W - len * (FONT_W + 1)) / 2;
             int ty = by + (BTN_H - FONT_H) / 2;
-            draw_text(fb32, w, h, tx, ty, g_app_names[i], 0xFFCCCCDDu);
+            draw_text(fb32, w, h, tx, ty, g_app_names[i], 0xFF000000u);
         }
     }
 
-    /* ── Start menu dropdown ────────────────────────────────────────────── */
-    if (g_menu_open) {
-        int my = MENU_TOP + 2;
-        int mh = NUM_APPS * MENU_ITEM_H + 40;
-        draw_shadow(fb32, w, h, MENU_X + 4, my, MENU_W, mh, 6);
-        fill_rect(fb32, w, h, MENU_X + 4, my, MENU_W, mh, 0xFF181838u);
-        for (int l = 0; l < MENU_W; l++) {
-            fb32[(uint32_t)my * w + (uint32_t)(MENU_X + 4 + l)] = 0xFF444466u;
-            fb32[(uint32_t)(my + mh - 1) * w + (uint32_t)(MENU_X + 4 + l)] = 0xFF222244u;
-        }
-        for (int l = 0; l < mh; l++) {
-            fb32[(uint32_t)(my + l) * w + (uint32_t)(MENU_X + 4)] = 0xFF444466u;
-            fb32[(uint32_t)(my + l) * w + (uint32_t)(MENU_X + 4 + MENU_W - 1)] = 0xFF222244u;
-        }
-
-        for (int i = 0; i < NUM_APPS; i++) {
-            int iy = my + 4 + i * MENU_ITEM_H;
-            if (i == g_menu_hover) {
-                fill_rect(fb32, w, h, MENU_X + 6, iy, MENU_W - 4, MENU_ITEM_H, 0xFF2A2A58u);
-                uint32_t hilite = 0xFF555588u;
-                for (int l = 0; l < MENU_W - 4; l++)
-                    fb32[(uint32_t)iy * w + (uint32_t)(MENU_X + 6 + l)] = hilite;
-            }
-            draw_text(fb32, w, h, MENU_X + 16, iy + (MENU_ITEM_H - FONT_H) / 2,
-                      g_app_names[i], i == g_menu_hover ? 0xFFFFFFDDu : 0xFFBBBBCCu);
-        }
-        int sep_y = my + 4 + NUM_APPS * MENU_ITEM_H;
-        fill_rect(fb32, w, h, MENU_X + 10, sep_y, MENU_W - 12, 1, 0xFF444466u);
-        int rby = sep_y + 6;
-        draw_text(fb32, w, h, MENU_X + 16, rby + (MENU_ITEM_H - FONT_H) / 2,
-                  "Reboot", 0xFFFF7766u);
-    }
-
-    /* ── App content window ─────────────────────────────────────────────── */
+    /* ── App content window (XP style) ──────────────────────────────────── */
     if (g_active_app >= 0) {
         int win_x = g_win_x, win_y = g_win_y;
-        int win_w = (int)w - 80, win_h = (int)h - (int)PANEL_H - 64;
+        int win_w = (int)w - 80;
+        int win_h = (int)h - TASKBAR_H - g_win_y - 8;
+        if (win_h < 80) win_h = 80;
 
         /* Window shadow */
         draw_shadow(fb32, w, h, win_x - 4, win_y - 24, win_w + 8, win_h + 30, 8);
 
-        /* Title bar */
-        fill_rect(fb32, w, h, win_x, win_y - 24, win_w, 24, 0xFF1A1A3Au);
-        for (int l = 0; l < win_w; l++) {
-            fb32[(uint32_t)(win_y - 24) * w + (uint32_t)(win_x + l)] = 0xFF444477u;
-            fb32[(uint32_t)(win_y - 1) * w + (uint32_t)(win_x + l)] = 0xFF333366u;
-        }
-
-        /* Content area */
-        fill_rect(fb32, w, h, win_x, win_y, win_w, win_h, 0xFF161630u);
-
-        /* Window border */
-        for (int l = 0; l < win_w; l++) {
-            fb32[(uint32_t)(win_y) * w + (uint32_t)(win_x + l)] = 0xFF444477u;
-            fb32[(uint32_t)(win_y + win_h - 1) * w + (uint32_t)(win_x + l)] = 0xFF333366u;
-        }
-        for (int l = 0; l < win_h; l++) {
-            fb32[(uint32_t)(win_y + l) * w + (uint32_t)win_x] = 0xFF444477u;
-            fb32[(uint32_t)(win_y + l) * w + (uint32_t)(win_x + win_w - 1)] = 0xFF333366u;
-        }
+        /* XP blue title bar (vertical gradient) */
+        vgrad(fb32, w, h, win_x, win_y - 24, win_w, 24, XP_TITLE_TOP, XP_TITLE_BOTTOM);
 
         /* Title text */
         draw_text(fb32, w, h, win_x + 10, win_y - 20,
-                  g_app_names[g_active_app], 0xFFAAAAEEu);
+                  g_app_names[g_active_app], XP_TITLE_TEXT);
 
-        /* Window close button */
-        int cx2 = win_x + win_w - 24, cy2 = win_y - 22;
-        fill_rect(fb32, w, h, cx2, cy2, 18, 18, 0xFF992222u);
-        draw_char(fb32, w, h, cx2 + 5, cy2 + 3, 'x', 0xFFFFFFFFu);
+        /* Window close button (XP red) */
+        int cx2 = win_x + win_w - 26, cy2 = win_y - 22;
+        uint32_t clr = g_close_hover ? XP_CLOSE_HOVER : XP_CLOSE_BG;
+        fill_rect(fb32, w, h, cx2, cy2, 18, 18, clr);
+        for (int l = 0; l < 18; l++) {
+            fb32[(uint32_t)cy2 * w + (uint32_t)(cx2 + l)] = 0xFFCC4444u;
+            fb32[(uint32_t)(cy2 + 17) * w + (uint32_t)(cx2 + l)] = 0xFF882222u;
+        }
+        for (int l = 0; l < 18; l++) {
+            fb32[(uint32_t)(cy2 + l) * w + (uint32_t)cx2] = 0xFFCC4444u;
+            fb32[(uint32_t)(cy2 + l) * w + (uint32_t)(cx2 + 17)] = 0xFF882222u;
+        }
+        draw_char(fb32, w, h, cx2 + 5, cy2 + 3, 'x', XP_CLOSE_X);
+
+        /* Content area (XP cream) */
+        fill_rect(fb32, w, h, win_x, win_y, win_w, win_h, XP_WIN_BG);
+
+        /* Window sunken border */
+        for (int l = 0; l < win_w; l++) {
+            fb32[(uint32_t)(win_y) * w + (uint32_t)(win_x + l)] = 0xFF888888u;
+            fb32[(uint32_t)(win_y + 1) * w + (uint32_t)(win_x + l)] = 0xFFFFFFFFu;
+            fb32[(uint32_t)(win_y + win_h - 2) * w + (uint32_t)(win_x + l)] = 0xFFFFFFFFu;
+            fb32[(uint32_t)(win_y + win_h - 1) * w + (uint32_t)(win_x + l)] = 0xFF888888u;
+        }
+        for (int l = 0; l < win_h; l++) {
+            fb32[(uint32_t)(win_y + l) * w + (uint32_t)win_x] = 0xFF888888u;
+            fb32[(uint32_t)(win_y + l) * w + (uint32_t)(win_x + 1)] = 0xFFFFFFFFu;
+            fb32[(uint32_t)(win_y + l) * w + (uint32_t)(win_x + win_w - 2)] = 0xFFFFFFFFu;
+            fb32[(uint32_t)(win_y + l) * w + (uint32_t)(win_x + win_w - 1)] = 0xFF888888u;
+        }
 
         g_app_draw[g_active_app](fb32, w, h, win_x + 4, win_y + 4,
                                   win_w - 8, win_h - 8);
@@ -583,14 +693,39 @@ static void process_mouse(void)
     int prev_mb = g_menu_btn_hover;
     int prev_dr = g_dragging;
 
+    uint32_t ww = g_info.width;
+    uint32_t wh = g_info.height;
+    int tb_y = (int)wh - TASKBAR_H;
+
+    /* ── Build running-app button hit rects ──────────────────────────── */
+    #define APP_BTN_HV (TASKBAR_H - 8)
+    #define APP_BTN_MAX_WV 160
+    #define APP_BTN_MIN_WV 60
+    static int app_btn_xs[NUM_APPS], app_btn_ws[NUM_APPS];
+    int abx = 4 + 90 + 4 + 6;  // after Start btn (4 + 90 + 4) + separator (2+1) + 6
+    int aby = tb_y + 4;
+    for (int i = 0; i < NUM_APPS; i++) {
+        int len = 0; while (g_app_names[i][len]) len++;
+        int bw = len * (FONT_W + 1) + 16;
+        if (bw < APP_BTN_MIN_WV) bw = APP_BTN_MIN_WV;
+        if (bw > APP_BTN_MAX_WV) bw = APP_BTN_MAX_WV;
+        app_btn_xs[i] = abx;
+        app_btn_ws[i] = bw;
+        abx += bw + 4;
+        if (abx + APP_BTN_MIN_WV > (int)ww - 120) {
+            for (int j = i + 1; j < NUM_APPS; j++) { app_btn_ws[j] = 0; app_btn_xs[j] = -1; }
+            break;
+        }
+    }
+
     mouse_event_t ev;
     while (zf_read_mouse(&ev) == 0) {
         int nx = cursor_x + ev.dx;
         int ny = cursor_y + ev.dy;
         if (nx < 0) nx = 0;
         if (ny < 0) ny = 0;
-        if (nx >= (int)g_info.width)  nx = (int)g_info.width - 1;
-        if (ny >= (int)g_info.height) ny = (int)g_info.height - 1;
+        if (nx >= (int)ww)  nx = (int)ww - 1;
+        if (ny >= (int)wh) ny = (int)wh - 1;
         cursor_x = nx;
         cursor_y = ny;
         zf_set_cursor(cursor_x, cursor_y);
@@ -599,7 +734,6 @@ static void process_mouse(void)
         int left_up    = !(ev.buttons & 1) && (prev_buttons & 1);
         prev_buttons = ev.buttons;
 
-        uint32_t ww = g_info.width;
         int win_w = (int)ww - 80;
 
         /* ── Window dragging ─────────────────────────────────────────── */
@@ -608,8 +742,8 @@ static void process_mouse(void)
             int new_y = ny - g_drag_off_y;
             if (new_x < 2) new_x = 2;
             if (new_x + win_w > (int)ww - 2) new_x = (int)ww - win_w - 2;
-            if (new_y < PANEL_H + 2) new_y = PANEL_H + 2;
-            if (new_y > (int)g_info.height - 60) new_y = (int)g_info.height - 60;
+            if (new_y < 2) new_y = 2;
+            if (new_y + 24 > tb_y) new_y = tb_y + 1 - 24;
             if (new_x != g_win_x || new_y != g_win_y) {
                 g_win_x = new_x;
                 g_win_y = new_y;
@@ -619,45 +753,62 @@ static void process_mouse(void)
             continue;
         }
 
-        /* ── Hover tracking ──────────────────────────────────────────── */
-        g_menu_btn_hover = point_in(nx, ny, MENU_BTN_X, 0, MENU_BTN_W, MENU_BTN_H);
+        /* ── Hover: Start button ─────────────────────────────────────── */
+        g_menu_btn_hover = point_in(nx, ny, 4, tb_y + 3, 90, TASKBAR_H - 6);
 
-        int close_x = (int)ww - 30;
-        int close_y = (PANEL_H - 18) / 2;
-        g_close_hover = g_active_app >= 0 &&
-                        point_in(nx, ny, close_x, close_y, 18, 18);
+        /* ── Hover: running app buttons on taskbar ───────────────────── */
+        int app_click = -1;
+        for (int i = 0; i < NUM_APPS; i++) {
+            if (app_btn_ws[i] > 0 && point_in(nx, ny, app_btn_xs[i], aby, app_btn_ws[i], APP_BTN_HV)) {
+                app_click = i;
+                break;
+            }
+        }
 
+        /* ── Hover: window close button ──────────────────────────────── */
+        if (g_active_app >= 0) {
+            int cx2 = g_win_x + win_w - 26, cy2 = g_win_y - 22;
+            g_close_hover = point_in(nx, ny, cx2, cy2, 18, 18);
+        } else {
+            g_close_hover = 0;
+        }
+
+        /* ── Hover: menu items ───────────────────────────────────────── */
         g_menu_hover = -1;
         if (g_menu_open) {
-            int my = MENU_TOP + 2;
+            int mh = NUM_APPS * MENU_ITEM_H + 48;
+            int my = tb_y - mh;
+            int mx = 4;
             for (int i = 0; i < NUM_APPS; i++) {
-                int iy = my + 4 + i * MENU_ITEM_H;
-                if (point_in(nx, ny, MENU_X + 6, iy, MENU_W - 4, MENU_ITEM_H)) {
+                int iy = my + 24 + i * MENU_ITEM_H;
+                if (point_in(nx, ny, mx + 4, iy, MENU_W - 8, MENU_ITEM_H)) {
                     g_menu_hover = i;
                     break;
                 }
             }
         }
 
+        /* ── Hover: settings rows ────────────────────────────────────── */
         g_settings_hover = -1;
         if (g_active_app == APP_SETTINGS && !g_menu_open) {
-            int win_w = (int)ww - 80;
+            int sww = (int)ww - 80;
             int sx = g_win_x + 4, sy = g_win_y + 50;
-            int row_h = 28, cw = win_w - 8;
+            int row_hh = 28, cw = sww - 8;
             for (int i = 0; i < 2; i++) {
-                if (point_in(nx, ny, sx, sy + i * (row_h + 4), cw, row_h)) {
+                if (point_in(nx, ny, sx, sy + i * (row_hh + 4), cw, row_hh)) {
                     g_settings_hover = i;
                     break;
                 }
             }
         }
 
+        /* ── Hover: launcher grid ────────────────────────────────────── */
         g_launcher_hover = -1;
         if (g_active_app < 0 && !g_menu_open) {
             int cols = 4, gap = 20;
             int total_w = cols * BTN_W + (cols - 1) * gap;
             int sx = ((int)ww - total_w) / 2;
-            int sy = (int)(PANEL_H + 80);
+            int sy = 100;
             for (int i = 0; i < NUM_APPS; i++) {
                 int bx = sx + (i % cols) * (BTN_W + gap);
                 int by = sy + (i / cols) * (BTN_H + gap);
@@ -677,23 +828,34 @@ static void process_mouse(void)
                 if (g_menu_hover >= 0) {
                     g_active_app = g_menu_hover;
                     g_win_x = 40;
-                    g_win_y = PANEL_H + 24;
+                    g_win_y = 80;
                     g_menu_open = 0;
                     g_dirty = 1;
                 } else {
-                    int my = MENU_TOP + 2;
-                    int sep_y = my + 4 + NUM_APPS * MENU_ITEM_H;
-                    if (point_in(nx, ny, MENU_X + 10, sep_y + 6, MENU_W - 20, MENU_ITEM_H))
+                    int mh = NUM_APPS * MENU_ITEM_H + 48;
+                    int my = tb_y - mh;
+                    int sep_y = my + 24 + NUM_APPS * MENU_ITEM_H;
+                    if (point_in(nx, ny, 10, sep_y + 6, MENU_W - 20, MENU_ITEM_H))
                         zf_reboot();
                     else { g_menu_open = 0; g_dirty = 1; }
                 }
             } else if (g_close_hover) {
                 g_active_app = -1;
                 g_dirty = 1;
+            } else if (app_click >= 0) {
+                if (app_click == g_active_app) {
+                    /* Clicking the active app button closes it */
+                    g_active_app = -1;
+                } else {
+                    g_active_app = app_click;
+                    g_win_x = 40;
+                    g_win_y = 80;
+                }
+                g_dirty = 1;
             } else if (g_launcher_hover >= 0) {
                 g_active_app = g_launcher_hover;
                 g_win_x = 40;
-                g_win_y = PANEL_H + 24;
+                g_win_y = 80;
                 g_dirty = 1;
             } else if (g_active_app == APP_SETTINGS && g_settings_hover >= 0) {
                 if (g_settings_hover == 0) {
@@ -704,7 +866,7 @@ static void process_mouse(void)
                 g_dirty = 1;
             } else if (g_active_app >= 0) {
                 /* Check window title bar click → start drag */
-                int wcx = g_win_x + win_w - 24;
+                int wcx = g_win_x + win_w - 26;
                 int wcy = g_win_y - 22;
                 if (point_in(nx, ny, wcx, wcy, 18, 18)) {
                     g_active_app = -1;
