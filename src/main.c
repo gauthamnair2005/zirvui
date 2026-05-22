@@ -316,6 +316,8 @@ static int g_menu_btn_hover = 0;
 
 static int g_launcher_hover = -1;
 static int g_settings_hover = -1;
+static int g_peek_hover = 0;
+static int g_showing_desktop = 0;
 
 #define MENU_BTN_X 8
 #define MENU_BTN_W 80
@@ -510,49 +512,74 @@ static void render_frame(void)
     for (int ly = 4; ly < TASKBAR_H - 4; ly++)
         fb32[(uint32_t)(tb_y + ly) * w + (uint32_t)(sep_x + 1)] = 0xFF3A6ABAu;
 
-    /* ── Running app buttons ────────────────────────────────────────────── */
-    int app_btn_x = sep_x + 6;
+    /* ── Open app taskbar button (only when an app is running) ──────────── */
     #define APP_BTN_H (TASKBAR_H - 8)
-    #define APP_BTN_MAX_W 160
-    #define APP_BTN_MIN_W 60
-    int app_btn_y = tb_y + 4;
-    for (int i = 0; i < NUM_APPS; i++) {
-        int len = 0; while (g_app_names[i][len]) len++;
-        int btn_w = len * (FONT_W + 1) + 16;
-        if (btn_w < APP_BTN_MIN_W) btn_w = APP_BTN_MIN_W;
-        if (btn_w > APP_BTN_MAX_W) btn_w = APP_BTN_MAX_W;
-        uint32_t abg = (i == g_active_app) ? 0xFF4A7ADCu : 0xFF1A3A7Au;
-        uint32_t abg2 = (i == g_active_app) ? 0xFF2A5ABCu : 0xFF0A1A5Au;
-        vgrad(fb32, w, h, app_btn_x, app_btn_y, btn_w, APP_BTN_H, abg, abg2);
-        /* Button bevel */
-        for (int l = 0; l < btn_w; l++) {
-            fb32[(uint32_t)app_btn_y * w + (uint32_t)(app_btn_x + l)] = 0xFF6A9AECu;
-            fb32[(uint32_t)(app_btn_y + APP_BTN_H - 1) * w + (uint32_t)(app_btn_x + l)] = 0xFF081844u;
+    #define APP_BTN_W 150
+    static int g_app_btn_x = 0;
+    if (g_active_app >= 0 && !g_showing_desktop) {
+        int app_btn_y = tb_y + 4;
+        g_app_btn_x = sep_x + 6;
+        uint32_t abg = 0xFF4A7ADCu, abg2 = 0xFF2A5ABCu;
+        vgrad(fb32, w, h, g_app_btn_x, app_btn_y, APP_BTN_W, APP_BTN_H, abg, abg2);
+        for (int l = 0; l < APP_BTN_W; l++) {
+            fb32[(uint32_t)app_btn_y * w + (uint32_t)(g_app_btn_x + l)] = 0xFF6A9AECu;
+            fb32[(uint32_t)(app_btn_y + APP_BTN_H - 1) * w + (uint32_t)(g_app_btn_x + l)] = 0xFF081844u;
         }
         for (int l = 0; l < APP_BTN_H; l++) {
-            fb32[(uint32_t)(app_btn_y + l) * w + (uint32_t)app_btn_x] = 0xFF5A8ADCu;
-            fb32[(uint32_t)(app_btn_y + l) * w + (uint32_t)(app_btn_x + btn_w - 1)] = 0xFF081844u;
+            fb32[(uint32_t)(app_btn_y + l) * w + (uint32_t)g_app_btn_x] = 0xFF5A8ADCu;
+            fb32[(uint32_t)(app_btn_y + l) * w + (uint32_t)(g_app_btn_x + APP_BTN_W - 1)] = 0xFF081844u;
         }
-        draw_text(fb32, w, h, app_btn_x + 4, app_btn_y + (APP_BTN_H - FONT_H) / 2,
-                  g_app_names[i], XP_TASKBAR_TEXT);
-        /* Store button position for click detection later */
-        (void)0;
-        app_btn_x += btn_w + 4;
-        if (app_btn_x + APP_BTN_MIN_W > (int)w - 120) break;
+        draw_text(fb32, w, h, g_app_btn_x + 4, app_btn_y + (APP_BTN_H - FONT_H) / 2,
+                  g_app_names[g_active_app], XP_TASKBAR_TEXT);
+    } else {
+        g_app_btn_x = sep_x + 6;
     }
 
-    /* ── System tray / Clock ────────────────────────────────────────────── */
-    int tray_right = (int)w - 4;
-    int clock_x = tray_right - 5 * (FONT_W + 1) - 8;
+    /* ── System tray: speaker, battery, clock, peek button ──────────────── */
+    int tray_right_x = (int)w - 4;
+
+    /* Peek button (Win7 Aero-style slim button at far right) */
+    #define PEEK_W 16
+    #define PEEK_H (TASKBAR_H - 10)
+    int peek_x = tray_right_x - PEEK_W;
+    int peek_y = tb_y + 5;
+    uint32_t peek_c = g_peek_hover ? 0xFF5A8ADCu : 0xFF1A3A7Au;
+    fill_rect(fb32, w, h, peek_x, peek_y, PEEK_W, PEEK_H, peek_c);
+    for (int l = 0; l < PEEK_W; l++) {
+        fb32[(uint32_t)peek_y * w + (uint32_t)(peek_x + l)] = 0xFF6A9AECu;
+        fb32[(uint32_t)(peek_y + PEEK_H - 1) * w + (uint32_t)(peek_x + l)] = 0xFF081844u;
+    }
+    for (int l = 0; l < PEEK_H; l++) {
+        fb32[(uint32_t)(peek_y + l) * w + (uint32_t)peek_x] = 0xFF5A8ADCu;
+        fb32[(uint32_t)(peek_y + l) * w + (uint32_t)(peek_x + PEEK_W - 1)] = 0xFF081844u;
+    }
+    /* Vertical separator line in peek button (looks like a slim divider) */
+    for (int l = 3; l < PEEK_H - 3; l++)
+        fb32[(uint32_t)(peek_y + l) * w + (uint32_t)(peek_x + PEEK_W / 2)] = 0xFFAAC8F8u;
+
+    /* Clock */
+    int clock_x = peek_x - 5 * (FONT_W + 1) - 14;
     int clock_y = tb_y + (TASKBAR_H - FONT_H) / 2;
-    /* Tray background */
-    fill_rect(fb32, w, h, clock_x - 6, tb_y + 2, tray_right - clock_x + 10, TASKBAR_H - 4, 0xFF0A1A52u);
-    /* Tray border */
-    for (int l = 0; l < tray_right - clock_x + 10; l++) {
-        fb32[(uint32_t)(tb_y + 2) * w + (uint32_t)(clock_x - 6 + l)] = 0xFF081844u;
-        fb32[(uint32_t)(tb_y + TASKBAR_H - 3) * w + (uint32_t)(clock_x - 6 + l)] = 0xFF2A4A8Au;
+    /* Tray area background for clock + icons */
+    int tray_w = peek_x - clock_x + 4;
+    fill_rect(fb32, w, h, clock_x - 4, tb_y + 2, tray_w + 8, TASKBAR_H - 4, 0xFF0A1A52u);
+    for (int l = 0; l < tray_w + 8; l++) {
+        fb32[(uint32_t)(tb_y + 2) * w + (uint32_t)(clock_x - 4 + l)] = 0xFF081844u;
+        fb32[(uint32_t)(tb_y + TASKBAR_H - 3) * w + (uint32_t)(clock_x - 4 + l)] = 0xFF2A4A8Au;
     }
     draw_clock(fb32, w, h, clock_x, clock_y, XP_TASKBAR_TEXT);
+
+    /* Speaker icon */
+    int spk_x = clock_x - 18;
+    draw_text(fb32, w, h, spk_x, clock_y, "))", XP_TASKBAR_TEXT);
+
+    /* Battery icon */
+    int bat_x = spk_x - 14;
+    /* Battery outline */
+    fill_rect(fb32, w, h, bat_x, clock_y + 1, 10, FONT_H - 2, XP_TASKBAR_TEXT);
+    fill_rect(fb32, w, h, bat_x + 10, clock_y + 4, 2, 5, XP_TASKBAR_TEXT);
+    /* Battery fill (half) */
+    fill_rect(fb32, w, h, bat_x + 2, clock_y + 3, 6, FONT_H - 6, 0xFF66DD66u);
 
     /* ── XP-style Start menu (pops up from taskbar) ─────────────────────── */
     if (g_menu_open) {
@@ -600,36 +627,8 @@ static void render_frame(void)
                   "Reboot", 0xFFCC0000u);
     }
 
-    /* ── Desktop launcher grid ──────────────────────────────────────────── */
-    if (g_active_app < 0 && !g_menu_open) {
-        int cols = 4, gap = 20;
-        int total_w = cols * BTN_W + (cols - 1) * gap;
-        int sx = ((int)w - total_w) / 2;
-        int sy = 80;
-        for (int i = 0; i < NUM_APPS; i++) {
-            int bx = sx + (i % cols) * (BTN_W + gap);
-            int by = sy + (i / cols) * (BTN_H + gap);
-            uint32_t bg = (i == g_launcher_hover) ? 0xFFD4E0F8u : 0xFFE8E8E0u;
-            fill_rect(fb32, w, h, bx, by, BTN_W, BTN_H, bg);
-            /* XP raised button border */
-            for (int l = 0; l < BTN_W; l++) {
-                fb32[(uint32_t)by * w + (uint32_t)(bx + l)] = 0xFFFFFFFFu;
-                fb32[(uint32_t)(by + BTN_H - 1) * w + (uint32_t)(bx + l)] = 0xFF888888u;
-            }
-            for (int l = 0; l < BTN_H; l++) {
-                fb32[(uint32_t)(by + l) * w + (uint32_t)bx] = 0xFFFFFFFFu;
-                fb32[(uint32_t)(by + l) * w + (uint32_t)(bx + BTN_W - 1)] = 0xFF888888u;
-            }
-            int len = 0;
-            while (g_app_names[i][len]) len++;
-            int tx = bx + (BTN_W - len * (FONT_W + 1)) / 2;
-            int ty = by + (BTN_H - FONT_H) / 2;
-            draw_text(fb32, w, h, tx, ty, g_app_names[i], 0xFF000000u);
-        }
-    }
-
     /* ── App content window (XP style) ──────────────────────────────────── */
-    if (g_active_app >= 0) {
+    if (g_active_app >= 0 && !g_showing_desktop) {
         int win_x = g_win_x, win_y = g_win_y;
         int win_w = (int)w - 80;
         int win_h = (int)h - TASKBAR_H - g_win_y - 8;
@@ -692,31 +691,23 @@ static void process_mouse(void)
     int prev_sh = g_settings_hover;
     int prev_mb = g_menu_btn_hover;
     int prev_dr = g_dragging;
+    int prev_ph = g_peek_hover;
 
     uint32_t ww = g_info.width;
     uint32_t wh = g_info.height;
     int tb_y = (int)wh - TASKBAR_H;
 
-    /* ── Build running-app button hit rects ──────────────────────────── */
+    /* ── Running-app button hit rect (single button for active app) ──── */
+    #define APP_BTN_X (4 + 90 + 4 + 6)  /* after Start btn + separators */
+    #define APP_BTN_WV 150
     #define APP_BTN_HV (TASKBAR_H - 8)
-    #define APP_BTN_MAX_WV 160
-    #define APP_BTN_MIN_WV 60
-    static int app_btn_xs[NUM_APPS], app_btn_ws[NUM_APPS];
-    int abx = 4 + 90 + 4 + 6;  // after Start btn (4 + 90 + 4) + separator (2+1) + 6
     int aby = tb_y + 4;
-    for (int i = 0; i < NUM_APPS; i++) {
-        int len = 0; while (g_app_names[i][len]) len++;
-        int bw = len * (FONT_W + 1) + 16;
-        if (bw < APP_BTN_MIN_WV) bw = APP_BTN_MIN_WV;
-        if (bw > APP_BTN_MAX_WV) bw = APP_BTN_MAX_WV;
-        app_btn_xs[i] = abx;
-        app_btn_ws[i] = bw;
-        abx += bw + 4;
-        if (abx + APP_BTN_MIN_WV > (int)ww - 120) {
-            for (int j = i + 1; j < NUM_APPS; j++) { app_btn_ws[j] = 0; app_btn_xs[j] = -1; }
-            break;
-        }
-    }
+
+    /* ── Peek button rect ────────────────────────────────────────────── */
+    #define PEEK_W 16
+    #define PEEK_H (TASKBAR_H - 10)
+    int peek_x = (int)ww - 4 - PEEK_W;
+    int peek_y = tb_y + 5;
 
     mouse_event_t ev;
     while (zf_read_mouse(&ev) == 0) {
@@ -756,14 +747,11 @@ static void process_mouse(void)
         /* ── Hover: Start button ─────────────────────────────────────── */
         g_menu_btn_hover = point_in(nx, ny, 4, tb_y + 3, 90, TASKBAR_H - 6);
 
-        /* ── Hover: running app buttons on taskbar ───────────────────── */
+        /* ── Hover: running app button on taskbar ────────────────────── */
         int app_click = -1;
-        for (int i = 0; i < NUM_APPS; i++) {
-            if (app_btn_ws[i] > 0 && point_in(nx, ny, app_btn_xs[i], aby, app_btn_ws[i], APP_BTN_HV)) {
-                app_click = i;
-                break;
-            }
-        }
+        if (g_active_app >= 0 && !g_showing_desktop &&
+            point_in(nx, ny, APP_BTN_X, aby, APP_BTN_WV, APP_BTN_HV))
+            app_click = g_active_app;
 
         /* ── Hover: window close button ──────────────────────────────── */
         if (g_active_app >= 0) {
@@ -802,27 +790,14 @@ static void process_mouse(void)
             }
         }
 
-        /* ── Hover: launcher grid ────────────────────────────────────── */
-        g_launcher_hover = -1;
-        if (g_active_app < 0 && !g_menu_open) {
-            int cols = 4, gap = 20;
-            int total_w = cols * BTN_W + (cols - 1) * gap;
-            int sx = ((int)ww - total_w) / 2;
-            int sy = 100;
-            for (int i = 0; i < NUM_APPS; i++) {
-                int bx = sx + (i % cols) * (BTN_W + gap);
-                int by = sy + (i / cols) * (BTN_H + gap);
-                if (point_in(nx, ny, bx, by, BTN_W, BTN_H)) {
-                    g_launcher_hover = i;
-                    break;
-                }
-            }
-        }
+        /* ── Hover: peek button ──────────────────────────────────────── */
+        g_peek_hover = point_in(nx, ny, peek_x, peek_y, PEEK_W, PEEK_H);
 
         /* ── Clicks ──────────────────────────────────────────────────── */
         if (left_down) {
             if (g_menu_btn_hover) {
                 g_menu_open = !g_menu_open;
+                if (g_menu_open) g_showing_desktop = 0;
                 g_dirty = 1;
             } else if (g_menu_open) {
                 if (g_menu_hover >= 0) {
@@ -843,19 +818,13 @@ static void process_mouse(void)
                 g_active_app = -1;
                 g_dirty = 1;
             } else if (app_click >= 0) {
-                if (app_click == g_active_app) {
-                    /* Clicking the active app button closes it */
-                    g_active_app = -1;
-                } else {
-                    g_active_app = app_click;
-                    g_win_x = 40;
-                    g_win_y = 80;
-                }
-                g_dirty = 1;
-            } else if (g_launcher_hover >= 0) {
-                g_active_app = g_launcher_hover;
+                if (g_showing_desktop) g_showing_desktop = 0;
+                g_active_app = app_click;
                 g_win_x = 40;
                 g_win_y = 80;
+                g_dirty = 1;
+            } else if (g_peek_hover) {
+                g_showing_desktop = !g_showing_desktop;
                 g_dirty = 1;
             } else if (g_active_app == APP_SETTINGS && g_settings_hover >= 0) {
                 if (g_settings_hover == 0) {
@@ -885,7 +854,8 @@ static void process_mouse(void)
     if (g_menu_hover != prev_mh || g_menu_open != prev_mo ||
         g_active_app != prev_aa || g_close_hover != prev_ch ||
         g_launcher_hover != prev_lh || g_settings_hover != prev_sh ||
-        g_menu_btn_hover != prev_mb || g_dragging != prev_dr)
+        g_menu_btn_hover != prev_mb || g_dragging != prev_dr ||
+        g_peek_hover != prev_ph)
         g_dirty = 1;
 }
 
