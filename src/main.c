@@ -32,6 +32,7 @@ typedef zf_mouse_event_t mouse_event_t;
 #define METRO_TILE_PHOTO 0xFF1ABC9C
 #define METRO_BACK_BTN   0xFF444466
 #define METRO_TILE_HOVER 0x22FFFFFF
+#define METRO_DIALOG_BG  0xFF1A1A3E
 
 /* ── Layout constants ─────────────────────────────────────────────────── */
 #define TILE_SIZE    120
@@ -112,10 +113,30 @@ static int g_active_app = -1;
 static int g_tile_hover = -1;
 static int g_back_hover = 0;
 static int g_font_scale = 1;
+static int g_exit_hover = 0;
+static int g_power_hover = 0;
+
+/* ── Shutdown confirmation / animation state ──────────────────────────── */
+static int g_confirm_shutdown = 0;   /* 0=off, 1=confirm dialog, 2=animating */
+static int g_shutdown_dot = 0;
+static uint64_t g_shutdown_start_s = 0;
+static int g_shutdown_yes_hover = 0;
+static int g_shutdown_no_hover = 0;
 
 /* ── Clock state ──────────────────────────────────────────────────────── */
 static int last_minute = -1;
 static int last_second = -1;
+
+/* ── Keycode defines (MOSIX/HID usage) ────────────────────────────────── */
+#define KEY_ENTER   0x28
+#define KEY_BSPACE  0x2A
+#define KEY_TAB     0x2B
+#define KEY_SPACE   0x2C
+#define MOD_LSHIFT  1
+#define MOD_RSHIFT  2
+#define MOD_LCTRL   4
+#define MOD_RCTRL   8
+#define MOD_CAPS    64
 
 /* ── Calculator state ─────────────────────────────────────────────────── */
 typedef struct {
@@ -129,6 +150,130 @@ typedef struct {
 
 static CalcState g_calc;
 static int g_calc_btn_hover = -1;
+
+/* ── Terminal state ───────────────────────────────────────────────────── */
+#define TERM_SCROLL 64
+#define TERM_LINE_LEN 128
+
+typedef struct {
+    char scroll[TERM_SCROLL][TERM_LINE_LEN];
+    int scroll_count;
+    char input[256];
+    int input_len;
+} TermState;
+
+static TermState g_term;
+
+static void term_add_scroll(const char *s) {
+    if (g_term.scroll_count < TERM_SCROLL) {
+        strcpy(g_term.scroll[g_term.scroll_count], s);
+        g_term.scroll_count++;
+    } else {
+        memmove(g_term.scroll, g_term.scroll + 1,
+                (size_t)(TERM_SCROLL - 1) * TERM_LINE_LEN);
+        strcpy(g_term.scroll[TERM_SCROLL - 1], s);
+    }
+}
+
+static int keycode_to_ascii(uint16_t kc, uint8_t mods) {
+    int shift = (mods & (MOD_LSHIFT | MOD_RSHIFT)) ? 1 : 0;
+    int caps  = (mods & MOD_CAPS) ? 1 : 0;
+
+    if (kc >= 0x04 && kc <= 0x1D) {
+        char c = 'a' + (int)(kc - 0x04);
+        if (shift ^ caps) c -= 0x20;
+        return c;
+    }
+    if (kc >= 0x1E && kc <= 0x26) {
+        const char shifted[] = "!@#$%^&*(";
+        if (shift) return shifted[kc - 0x1E];
+        return '1' + (int)(kc - 0x1E);
+    }
+    if (kc == 0x27) return shift ? ')' : '0';
+    if (kc == KEY_ENTER) return '\n';
+    if (kc == KEY_BSPACE) return '\b';
+    if (kc == KEY_TAB) return '\t';
+    if (kc == KEY_SPACE) return ' ';
+
+    switch (kc) {
+    case 0x2D: return shift ? '_' : '-';
+    case 0x2E: return shift ? '+' : '=';
+    case 0x2F: return shift ? '{' : '[';
+    case 0x30: return shift ? '}' : ']';
+    case 0x31: return shift ? '|' : '\\';
+    case 0x33: return shift ? ':' : ';';
+    case 0x34: return shift ? '"' : '\'';
+    case 0x35: return shift ? '~' : '`';
+    case 0x36: return shift ? '<' : ',';
+    case 0x37: return shift ? '>' : '.';
+    case 0x38: return shift ? '?' : '/';
+    }
+    return 0;
+}
+
+static void term_run_shell(void) {
+    if (g_term.input_len == 0) return;
+
+    int stdin_pipe[2], stdout_pipe[2];
+    if (pipe(stdin_pipe) < 0 || pipe(stdout_pipe) < 0) return;
+
+    int old_stdout = stdout_pipe[0];
+
+    char cmd[256];
+    int cmd_len = g_term.input_len;
+    memcpy(cmd, g_term.input, (size_t)cmd_len);
+    cmd[cmd_len] = '\0';
+
+    term_add_scroll(cmd);
+    g_term.input[0] = '\0';
+    g_term.input_len = 0;
+
+    write(stdin_pipe[1], cmd, (size_t)cmd_len);
+    write(stdin_pipe[1], "\n", 1);
+    write(stdin_pipe[1], "exit\n", 5);
+    close(stdin_pipe[1]);
+
+    dup2(stdin_pipe[0], 0);
+    close(stdin_pipe[0]);
+    dup2(stdout_pipe[1], 1);
+    close(stdout_pipe[1]);
+
+    char *argv[] = {"shell", NULL};
+    g_dirty = 1;
+    int ret = execve("/bin/shell", argv, NULL);
+
+    if (ret < 0) {
+        close(1);
+        close(old_stdout);
+        close(0);
+        term_add_scroll("error: shell not found");
+        return;
+    }
+
+    /* Shell exited — read output from stdout pipe */
+    close(1);
+
+    char buf[4096];
+    int total = 0, n;
+    while ((n = read(old_stdout, buf + total, (int)sizeof(buf) - 1 - total)) > 0) {
+        total += n;
+        if (total >= (int)sizeof(buf) - 1) break;
+    }
+
+    if (total > 0) {
+        buf[total] = '\0';
+        char *line = buf;
+        char *nl;
+        while ((nl = strchr(line, '\n')) != NULL) {
+            *nl = '\0';
+            term_add_scroll(line);
+            line = nl + 1;
+        }
+        if (*line) term_add_scroll(line);
+    }
+    close(old_stdout);
+    close(0);
+}
 
 /* ── Animation state ──────────────────────────────────────────────────── */
 typedef struct {
@@ -628,28 +773,28 @@ static void draw_start_screen(uint32_t *fb, uint32_t w, uint32_t h) {
 /* ── App renderers ────────────────────────────────────────────────────── */
 static void draw_terminal(uint32_t *fb, uint32_t w, uint32_t h) {
     fill_rect(fb, w, h, 0, 0, (int)w, (int)h, 0xFF0D0D1A);
-    const char *lines[] = {
-        "Zirvium OS Terminal v0.1",
-        "------------------------",
-        "",
-        "> Welcome to Zirvium",
-        "> Kernel: x86_64, 4-level paging",
-        "> Display: DisplayJet MAEM",
-        "> Network: Stack initialized",
-        "",
-        "> Type 'help' for available commands",
-        "> Type 'clear' to clear the screen",
-        "> Type 'exec <program>' to run a program",
-        "> Type 'exit' to close this window",
-        "",
-        "zirvium@zirvium:~$ _",
-        NULL,
-    };
     int y = TITLEBAR_H + 10;
-    for (int i = 0; lines[i]; i++) {
-        draw_text(fb, w, h, 16, y, lines[i], 0xFF00FF00);
-        y += FONT_H + 4;
+    int max_lines = ((int)h - TITLEBAR_H - 10) / (FONT_H + 2);
+    int start = (g_term.scroll_count > max_lines)
+                ? g_term.scroll_count - max_lines : 0;
+    for (int i = start; i < g_term.scroll_count; i++) {
+        draw_text(fb, w, h, 12, y, g_term.scroll[i], 0xFF00FF00);
+        y += FONT_H + 2;
     }
+
+    /* Prompt + input line */
+    char prompt[280];
+    int plen = snprintf(prompt, sizeof(prompt), "zirvium:~$ %s",
+                        g_term.input);
+    if (plen < 0 || plen >= (int)sizeof(prompt)) plen = (int)sizeof(prompt) - 1;
+    prompt[plen] = '\0';
+    draw_text(fb, w, h, 12, y, prompt, 0xFF00FF00);
+
+    /* Cursor */
+    int cw = (int)strlen("zirvium:~$ ") * (FONT_W + 1);
+    int ci = (int)strlen(g_term.input);
+    int cx = 12 + (cw + ci * (FONT_W + 1)) * g_font_scale;
+    fill_rect(fb, w, h, cx, y, 6 * g_font_scale, FONT_H * g_font_scale, 0xFF00FF00);
 }
 
 static void calc_reset(void) {
@@ -984,9 +1129,84 @@ static void draw_taskbar(uint32_t *fb, uint32_t w, uint32_t h) {
     fill_rect(fb, w, h, 0, tb_y, (int)w, 1, 0xFF333355);
     draw_clock_text(fb, w, h, (int)w - 70, tb_y + (TASKBAR_H - FONT_H) / 2, METRO_TEXT);
     draw_text(fb, w, h, 10, tb_y + (TASKBAR_H - FONT_H) / 2, "Zirvium", METRO_ACCENT);
-    int icon_x = (int)w - 100 - TILE_SIZE;
-    int icon_y = tb_y - TILE_SIZE - 8;
-    (void)icon_x; (void)icon_y;
+
+    int btn_y = tb_y + 4;
+    int btn_h = TASKBAR_H - 8;
+
+    /* Exit button */
+    int exit_x = (int)w - 195;
+    int exit_w = 55;
+    uint32_t exit_c = g_exit_hover ? 0xFF555577 : 0xFF333355;
+    fill_rect(fb, w, h, exit_x, btn_y, exit_w, btn_h, exit_c);
+    draw_text(fb, w, h, exit_x + (exit_w - 4 * (FONT_W + 1)) / 2,
+              btn_y + (btn_h - FONT_H) / 2, "Exit", METRO_TEXT);
+
+    /* Power button */
+    int pwr_x = (int)w - 135;
+    int pwr_w = 60;
+    uint32_t pwr_c = g_power_hover ? 0xFF553333 : 0xFF333355;
+    fill_rect(fb, w, h, pwr_x, btn_y, pwr_w, btn_h, pwr_c);
+    draw_text(fb, w, h, pwr_x + (pwr_w - 5 * (FONT_W + 1)) / 2,
+              btn_y + (btn_h - FONT_H) / 2, "Power", METRO_TEXT);
+}
+
+/* ── Shutdown confirmation dialog / animation overlay ─────────────────── */
+static void draw_shutdown_overlay(uint32_t *fb, uint32_t w, uint32_t h) {
+    /* Semi-transparent dark overlay */
+    fill_rect(fb, w, h, 0, 0, (int)w, (int)h, 0xAA000000);
+
+    int cx = (int)w / 2;
+    int cy = (int)h / 2;
+    int dw = 340, dh = 140;
+    int dx = cx - dw / 2, dy = cy - dh / 2;
+
+    /* Dialog box background */
+    fill_rect(fb, w, h, dx, dy, dw, dh, METRO_DIALOG_BG);
+    fill_rect(fb, w, h, dx, dy, dw, 2, 0xFF6666AA);
+
+    if (g_confirm_shutdown == 1) {
+        /* ── Confirmation dialog ─────────────────────────────────────── */
+        draw_text(fb, w, h, cx - 36, dy + 24, "Shut down?", METRO_TEXT);
+
+        int btn_w = 90, btn_h = 34;
+        int btn_y = dy + dh - 52;
+
+        /* Yes button */
+        int yes_x = dx + 50;
+        uint32_t yes_c = g_shutdown_yes_hover ? 0xFF553333 : 0xFF444466;
+        fill_rect(fb, w, h, yes_x, btn_y, btn_w, btn_h, yes_c);
+        draw_text(fb, w, h, yes_x + (btn_w - 3 * (FONT_W + 1)) / 2,
+                  btn_y + (btn_h - FONT_H) / 2, "Yes", METRO_TEXT);
+
+        /* No button */
+        int no_x = dx + dw - 50 - btn_w;
+        uint32_t no_c = g_shutdown_no_hover ? 0xFF555577 : 0xFF444466;
+        fill_rect(fb, w, h, no_x, btn_y, btn_w, btn_h, no_c);
+        draw_text(fb, w, h, no_x + (btn_w - 2 * (FONT_W + 1)) / 2,
+                  btn_y + (btn_h - FONT_H) / 2, "No", METRO_TEXT);
+    } else {
+        /* ── Shutting down animation ─────────────────────────────────── */
+        const char *dots[] = {"", ".", "..", "..."};
+        char msg[32];
+        snprintf(msg, sizeof(msg), "Shutting down%s", dots[g_shutdown_dot]);
+        draw_text(fb, w, h, cx - 72, dy + 30, msg, 0xFFFF6666);
+
+        /* Progress bar */
+        int bar_x = dx + 30, bar_y = dy + 70;
+        int bar_w = dw - 60, bar_h = 8;
+        fill_rect(fb, w, h, bar_x, bar_y, bar_w, bar_h, 0xFF333355);
+
+        uint64_t elapsed = uptime() - g_shutdown_start_s;
+        if (elapsed > 5) elapsed = 5;
+        int fill = (int)((uint64_t)bar_w * elapsed / 5);
+        if (fill > 0)
+            fill_rect(fb, w, h, bar_x, bar_y, fill, bar_h, 0xFFCC4444);
+
+        char pct[8];
+        g_font_scale = 1;
+        snprintf(pct, sizeof(pct), "%lu%%", (unsigned long)(elapsed * 100 / 5));
+        draw_text(fb, w, h, cx - 12, bar_y + 14, pct, METRO_TEXT_DIM);
+    }
 }
 
 /* ── Render one frame ──────────────────────────────────────────────────── */
@@ -1044,6 +1264,10 @@ static void render_frame(void) {
         draw_start_screen(fb32, w, h);
         draw_taskbar(fb32, w, h);
     }
+
+    /* Shutdown confirmation / animation overlay */
+    if (g_confirm_shutdown)
+        draw_shutdown_overlay(fb32, w, h);
 }
 
 /* ── Process mouse events ───────────────────────────────────────────────── */
@@ -1083,6 +1307,10 @@ static void process_mouse(void) {
     int prev_th = g_tile_hover;
     int prev_bh = g_back_hover;
     int prev_cbh = g_calc_btn_hover;
+    int prev_eh = g_exit_hover;
+    int prev_ph = g_power_hover;
+    int prev_syh = g_shutdown_yes_hover;
+    int prev_snh = g_shutdown_no_hover;
 
     uint32_t ww = g_info.width;
     uint32_t wh = g_info.height;
@@ -1104,11 +1332,46 @@ static void process_mouse(void) {
 
         g_tile_hover = -1;
         g_back_hover = 0;
+        g_exit_hover = 0;
+        g_power_hover = 0;
 
         if (g_anim.active) {
             if (left_down) {
                 g_anim.active = 0;
                 g_anim.frame = ANIM_FRAMES;
+                g_dirty = 1;
+            }
+            continue;
+        }
+
+        /* ── Shutdown confirmation dialog ───────────────────────────── */
+        if (g_confirm_shutdown == 2) {
+            continue; /* ignore all input during shutdown animation */
+        }
+        if (g_confirm_shutdown == 1) {
+            g_shutdown_yes_hover = 0;
+            g_shutdown_no_hover = 0;
+
+            int cx = (int)ww / 2, cy = (int)wh / 2;
+            int dw = 340, dh = 140;
+            int dx = cx - dw / 2, dy = cy - dh / 2;
+
+            int btn_x = dx + 50, btn_y = dy + dh - 52;
+            int btn_w = 90, btn_h = 34;
+            if (point_in(nx, ny, btn_x, btn_y, btn_w, btn_h))
+                g_shutdown_yes_hover = 1;
+
+            int no_x = dx + dw - 50 - btn_w;
+            if (point_in(nx, ny, no_x, btn_y, btn_w, btn_h))
+                g_shutdown_no_hover = 1;
+
+            if (left_down && g_shutdown_yes_hover) {
+                g_confirm_shutdown = 2;
+                g_shutdown_start_s = uptime();
+                g_dirty = 1;
+            }
+            if (left_down && g_shutdown_no_hover) {
+                g_confirm_shutdown = 0;
                 g_dirty = 1;
             }
             continue;
@@ -1161,6 +1424,19 @@ static void process_mouse(void) {
             }
         }
 
+        /* Taskbar buttons hover */
+        int tb_y = (int)wh - TASKBAR_H;
+        int btn_y = tb_y + 4;
+        int btn_h = TASKBAR_H - 8;
+        int exit_x = (int)ww - 195;
+        int exit_w = 55;
+        if (point_in(nx, ny, exit_x, btn_y, exit_w, btn_h))
+            g_exit_hover = 1;
+        int pwr_x = (int)ww - 135;
+        int pwr_w = 60;
+        if (point_in(nx, ny, pwr_x, btn_y, pwr_w, btn_h))
+            g_power_hover = 1;
+
         if (left_down && g_tile_hover >= 0) {
             int tx, ty, tw, th;
             get_tile_rect(g_tile_hover, &tx, &ty, &tw, &th);
@@ -1173,11 +1449,50 @@ static void process_mouse(void) {
             g_anim.scr_w = (int)ww; g_anim.scr_h = (int)wh;
             g_dirty = 1;
         }
+
+        if (left_down && g_exit_hover) {
+            /* Restore stdin/stdout to console before returning to shell */
+            dup2(2, 0);
+            dup2(2, 1);
+            zf_disconnect();
+            _exit(0);
+        }
+        if (left_down && g_power_hover) {
+            g_confirm_shutdown = 1;
+            g_dirty = 1;
+        }
     }
 
     if (g_tile_hover != prev_th || g_back_hover != prev_bh ||
-        g_calc_btn_hover != prev_cbh)
+        g_calc_btn_hover != prev_cbh || g_exit_hover != prev_eh ||
+        g_power_hover != prev_ph || g_shutdown_yes_hover != prev_syh ||
+        g_shutdown_no_hover != prev_snh)
         g_dirty = 1;
+}
+
+/* ── Process keyboard events (for terminal app) ─────────────────────────── */
+static void process_keys(void) {
+    if (g_active_app != APP_TERMINAL) return;
+
+    key_event_t ev;
+    while (read_keys(&ev) == 0) {
+        if (!ev.pressed) continue;
+
+        int c = keycode_to_ascii(ev.keycode, ev.mods);
+        if (c == '\n') {
+            term_run_shell();
+            g_dirty = 1;
+        } else if (c == '\b') {
+            if (g_term.input_len > 0) {
+                g_term.input[--g_term.input_len] = '\0';
+                g_dirty = 1;
+            }
+        } else if (c > 0 && c < 128 && g_term.input_len < 255) {
+            g_term.input[g_term.input_len++] = (char)c;
+            g_term.input[g_term.input_len] = '\0';
+            g_dirty = 1;
+        }
+    }
 }
 
 /* ── Main loop ──────────────────────────────────────────────────────────── */
@@ -1193,6 +1508,11 @@ int main(void) {
 
     calc_reset();
 
+    /* Initialize terminal with welcome */
+    memset(&g_term, 0, sizeof(g_term));
+    term_add_scroll("Zirvium OS Terminal v0.1");
+    term_add_scroll("");
+
     size_t fb_size = (size_t)g_buf.stride * g_buf.height;
     render_frame();
 
@@ -1203,6 +1523,7 @@ int main(void) {
 
     for (;;) {
         process_mouse();
+        process_keys();
 
         if (g_anim.active) {
             g_anim.frame++;
@@ -1213,6 +1534,22 @@ int main(void) {
                 } else {
                     g_active_app = -1;
                 }
+            }
+            g_dirty = 1;
+        }
+
+        /* ── Shutdown animation timing ──────────────────────────────── */
+        if (g_confirm_shutdown == 2) {
+            uint64_t now = uptime();
+            uint64_t elapsed = now - g_shutdown_start_s;
+            int new_dot = (int)(elapsed % 4);
+            if (new_dot != g_shutdown_dot) {
+                g_shutdown_dot = new_dot;
+                g_dirty = 1;
+            }
+            if (elapsed >= 5) {
+                zf_disconnect();
+                shutdown();
             }
             g_dirty = 1;
         }
