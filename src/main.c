@@ -30,6 +30,10 @@ typedef zf_mouse_event_t mouse_event_t;
 #define METRO_TILE_MUSIC 0xFFE74C3C
 #define METRO_TILE_MAIL  0xFFE67E22
 #define METRO_TILE_PHOTO 0xFF1ABC9C
+#define METRO_TILE_EDITR 0xFF8E44AD
+#define METRO_TILE_SNAKE 0xFF27AE60
+#define METRO_TILE_PONG  0xFF2980B9
+#define METRO_TILE_TETRS 0xFFC0392B
 #define METRO_BACK_BTN   0xFF444466
 #define METRO_TILE_HOVER 0x22FFFFFF
 #define METRO_DIALOG_BG  0xFF1A1A3E
@@ -57,6 +61,10 @@ enum {
     ICON_PHOTOS,
     ICON_STORE,
     ICON_MAPS,
+    ICON_EDITOR,
+    ICON_SNAKE,
+    ICON_PONG,
+    ICON_TETRIS,
     NUM_ICONS,
 };
 
@@ -74,6 +82,10 @@ enum {
     APP_PHOTOS,
     APP_STORE,
     APP_MAPS,
+    APP_EDITOR,
+    APP_SNAKE,
+    APP_PONG,
+    APP_TETRIS,
     NUM_APPS,
 };
 
@@ -96,6 +108,10 @@ static const AppDef g_apps[NUM_APPS] = {
     {"Photos",     METRO_TILE_PHOTO, ICON_PHOTOS},
     {"Store",      METRO_TILE_SETT,  ICON_STORE},
     {"Maps",       METRO_TILE_TERM,  ICON_MAPS},
+    {"Editor",     METRO_TILE_EDITR, ICON_EDITOR},
+    {"Snake",      METRO_TILE_SNAKE, ICON_SNAKE},
+    {"Pong",       METRO_TILE_PONG,  ICON_PONG},
+    {"Tetris",     METRO_TILE_TETRS, ICON_TETRIS},
 };
 
 /* ── Framebuffer state ────────────────────────────────────────────────── */
@@ -132,6 +148,10 @@ static int last_second = -1;
 #define KEY_BSPACE  0x2A
 #define KEY_TAB     0x2B
 #define KEY_SPACE   0x2C
+#define KEY_UP      0x52
+#define KEY_DOWN    0x51
+#define KEY_LEFT    0x50
+#define KEY_RIGHT   0x4F
 #define MOD_LSHIFT  1
 #define MOD_RSHIFT  2
 #define MOD_LCTRL   4
@@ -163,6 +183,62 @@ typedef struct {
 } TermState;
 
 static TermState g_term;
+
+/* ── Editor state ─────────────────────────────────────────────────────── */
+#define EDITOR_ROWS 32
+#define EDITOR_COLS 80
+typedef struct {
+    char lines[EDITOR_ROWS][EDITOR_COLS + 1];
+    int row;
+    int col;
+    int num_lines;
+    int scroll_row;
+} EditorState;
+static EditorState g_editor;
+
+/* ── Snake state ──────────────────────────────────────────────────────── */
+#define SNAKE_MAX 256
+#define SNAKE_COLS 40
+#define SNAKE_ROWS 30
+typedef struct {
+    int seg_x[SNAKE_MAX];
+    int seg_y[SNAKE_MAX];
+    int seg_len;
+    int dir; /* 0=up,1=down,2=left,3=right */
+    int next_dir;
+    int food_x, food_y;
+    int score;
+    int gameover;
+    int tick;
+} SnakeState;
+static SnakeState g_snake;
+
+/* ── Pong state ────────────────────────────────────────────────────────── */
+typedef struct {
+    float ball_x, ball_y, ball_dx, ball_dy;
+    float paddle_y;
+    int player_score;
+    int ai_score;
+    int gameover;
+    int tick;
+} PongState;
+static PongState g_pong;
+
+/* ── Tetris state ──────────────────────────────────────────────────────── */
+#define TETRIS_COLS 10
+#define TETRIS_ROWS 20
+typedef struct {
+    char grid[TETRIS_ROWS][TETRIS_COLS];
+    int piece_type;   /* 0-6 */
+    int piece_rot;    /* 0-3 */
+    int piece_x, piece_y;
+    int next_piece;
+    int score;
+    int lines;
+    int gameover;
+    int tick;
+} TetrisState;
+static TetrisState g_tetris;
 
 static void term_add_scroll(const char *s) {
     if (g_term.scroll_count < TERM_SCROLL) {
@@ -273,6 +349,65 @@ static void term_run_shell(void) {
     }
     close(old_stdout);
     close(0);
+}
+
+/* ── Tetris piece shapes (4 rotations each) ──────────────────────────── */
+static const int tetris_pieces[7][4][4] = {
+    {{1,1,1,1},{0,0,0,0},{0,0,0,0},{0,0,0,0}}, /* I */
+    {{1,1,0,0},{1,1,0,0},{0,0,0,0},{0,0,0,0}}, /* O */
+    {{1,1,1,0},{0,1,0,0},{0,0,0,0},{0,0,0,0}}, /* T */
+    {{1,1,1,0},{1,0,0,0},{0,0,0,0},{0,0,0,0}}, /* L */
+    {{1,1,1,0},{0,0,1,0},{0,0,0,0},{0,0,0,0}}, /* J */
+    {{1,1,0,0},{0,1,1,0},{0,0,0,0},{0,0,0,0}}, /* S */
+    {{0,1,1,0},{1,1,0,0},{0,0,0,0},{0,0,0,0}}, /* Z */
+};
+static const int tetris_colors[] = {
+    0xFF00FFFF, 0xFFFFFF00, 0xFFAA00FF, 0xFFFF8800,
+    0xFF0000FF, 0xFF00FF00, 0xFFFF0000,
+};
+
+/* ── Game initialization helpers ──────────────────────────────────────── */
+static void editor_reset(void) {
+    memset(&g_editor, 0, sizeof(g_editor));
+    g_editor.num_lines = 1;
+}
+
+static void snake_reset(void) {
+    g_snake.seg_len = 3;
+    g_snake.seg_x[0] = SNAKE_COLS / 2; g_snake.seg_y[0] = SNAKE_ROWS / 2;
+    g_snake.seg_x[1] = SNAKE_COLS / 2 - 1; g_snake.seg_y[1] = SNAKE_ROWS / 2;
+    g_snake.seg_x[2] = SNAKE_COLS / 2 - 2; g_snake.seg_y[2] = SNAKE_ROWS / 2;
+    g_snake.dir = 3; /* right */
+    g_snake.next_dir = 3;
+    g_snake.score = 0;
+    g_snake.gameover = 0;
+    g_snake.tick = 0;
+    /* place food */
+    g_snake.food_x = SNAKE_COLS * 3 / 4;
+    g_snake.food_y = SNAKE_ROWS / 4;
+}
+
+static void pong_reset(void) {
+    g_pong.ball_x = 0.5f; g_pong.ball_y = 0.5f;
+    g_pong.ball_dx = 0.02f; g_pong.ball_dy = 0.015f;
+    g_pong.paddle_y = 0.4f;
+    g_pong.player_score = 0;
+    g_pong.ai_score = 0;
+    g_pong.gameover = 0;
+    g_pong.tick = 0;
+}
+
+static void tetris_reset(void) {
+    memset(&g_tetris, 0, sizeof(g_tetris));
+    g_tetris.piece_type = 0;
+    g_tetris.piece_rot = 0;
+    g_tetris.piece_x = 3;
+    g_tetris.piece_y = 0;
+    g_tetris.next_piece = 1;
+    g_tetris.score = 0;
+    g_tetris.lines = 0;
+    g_tetris.gameover = 0;
+    g_tetris.tick = 0;
 }
 
 /* ── Animation state ──────────────────────────────────────────────────── */
@@ -667,6 +802,37 @@ static void draw_icon(uint32_t *fb, uint32_t fb_w, uint32_t fb_h,
         case ICON_MAPS: {
             draw_line(fb, fb_w, fb_h, cx - size / 3, cy + size / 4, cx, cy - size / 4, color);
             draw_line(fb, fb_w, fb_h, cx + size / 3, cy + size / 4, cx, cy - size / 4, color);
+            break;
+        }
+        case ICON_EDITOR: {
+            int s = size / 3;
+            draw_line(fb, fb_w, fb_h, cx - s, cy - s, cx - s, cy + s, color);
+            draw_line(fb, fb_w, fb_h, cx + s, cy - s, cx + s, cy + s, color);
+            for (int i = -1; i <= 1; i++)
+                draw_line(fb, fb_w, fb_h, cx - s + 1, cy + i * s / 2, cx + s - 1, cy + i * s / 2, color);
+            break;
+        }
+        case ICON_SNAKE: {
+            int s = size / 4;
+            fill_rect(fb, fb_w, fb_h, cx - s, cy, s * 2, s, color);
+            fill_rect(fb, fb_w, fb_h, cx - s, cy - s * 2, s * 2, s, color);
+            fill_rect(fb, fb_w, fb_h, cx + s, cy - s * 2, s, s * 3, color);
+            fill_rect(fb, fb_w, fb_h, cx - s, cy - s, s, s, color);
+            break;
+        }
+        case ICON_PONG: {
+            int s = size / 4;
+            fill_rect(fb, fb_w, fb_h, cx - s * 3, cy - s * 2, s / 2, s * 4, color);
+            fill_rect(fb, fb_w, fb_h, cx + s * 3 - s / 2, cy - s * 2, s / 2, s * 4, color);
+            fill_rect(fb, fb_w, fb_h, cx - s / 4, cy - s / 4, s / 2, s / 2, color);
+            break;
+        }
+        case ICON_TETRIS: {
+            int s = size / 5;
+            fill_rect(fb, fb_w, fb_h, cx - s, cy - s * 2, s * 2, s, color);
+            fill_rect(fb, fb_w, fb_h, cx - s, cy - s, s, s * 3, color);
+            fill_rect(fb, fb_w, fb_h, cx, cy, s * 2, s, color);
+            fill_rect(fb, fb_w, fb_h, cx + s, cy + s, s * 2, s, color);
             break;
         }
         default:
@@ -1101,12 +1267,226 @@ static void draw_maps(uint32_t *fb, uint32_t w, uint32_t h) {
     fill_rect(fb, w, h, 24 + 7 * 80 - 4, TITLEBAR_H + 50 + 3 * 80 - 4, 8, 8, 0xFFE74C3C);
 }
 
+/* ── Text Editor ───────────────────────────────────────────────────────── */
+static void draw_editor(uint32_t *fb, uint32_t w, uint32_t h) {
+    fill_rect(fb, w, h, 0, TITLEBAR_H, (int)w, (int)h - TITLEBAR_H, 0xFF1A1A2E);
+    int rows = ((int)h - TITLEBAR_H - 20) / (FONT_H + 4);
+    int start_row = g_editor.scroll_row;
+    int end_row = start_row + rows;
+    if (end_row > g_editor.num_lines) end_row = g_editor.num_lines;
+    int y = TITLEBAR_H + 10;
+    for (int r = start_row; r < end_row; r++) {
+        uint32_t c = (r == g_editor.row) ? 0xFF2A2A4E : 0xFF222244;
+        fill_rect(fb, w, h, 8, y, (int)w - 16, FONT_H + 4, c);
+        draw_text(fb, w, h, 12, y + 1, g_editor.lines[r], METRO_TEXT);
+        /* cursor on active row */
+        if (r == g_editor.row) {
+            int cx = 12 + g_editor.col * (FONT_W + 1);
+            fill_rect(fb, w, h, cx, y + 1, 2, FONT_H, 0xFF88CCFF);
+        }
+        y += FONT_H + 5;
+    }
+}
+
+/* ── Snake ──────────────────────────────────────────────────────────────── */
+#define SNAKE_CELL 10
+static void draw_snake(uint32_t *fb, uint32_t w, uint32_t h) {
+    fill_rect(fb, w, h, 0, TITLEBAR_H, (int)w, (int)h - TITLEBAR_H, 0xFF0A0A1E);
+    int ox = ((int)w - SNAKE_COLS * SNAKE_CELL) / 2;
+    int oy = TITLEBAR_H + ((int)h - TITLEBAR_H - SNAKE_ROWS * SNAKE_CELL) / 2;
+    /* grid */
+    for (int y = 0; y < SNAKE_ROWS; y++) {
+        for (int x = 0; x < SNAKE_COLS; x++) {
+            fill_rect(fb, w, h, ox + x * SNAKE_CELL, oy + y * SNAKE_CELL,
+                      SNAKE_CELL - 1, SNAKE_CELL - 1, 0xFF111133);
+        }
+    }
+    /* food */
+    fill_rect(fb, w, h, ox + g_snake.food_x * SNAKE_CELL, oy + g_snake.food_y * SNAKE_CELL,
+              SNAKE_CELL - 1, SNAKE_CELL - 1, 0xFFE74C3C);
+    /* snake */
+    for (int i = 0; i < g_snake.seg_len; i++) {
+        uint32_t sc = (i == 0) ? 0xFF2ECC71 : 0xFF27AE60;
+        fill_rect(fb, w, h, ox + g_snake.seg_x[i] * SNAKE_CELL, oy + g_snake.seg_y[i] * SNAKE_CELL,
+                  SNAKE_CELL - 1, SNAKE_CELL - 1, sc);
+    }
+    /* score */
+    char buf[32];
+    snprintf(buf, 32, "Score: %d", g_snake.score);
+    draw_text(fb, w, h, 8, TITLEBAR_H + 6, buf, METRO_TEXT);
+    if (g_snake.gameover) {
+        draw_text(fb, w, h, (int)w / 2 - 40, (int)h / 2 - 6, "GAME OVER", 0xFFE74C3C);
+        draw_text(fb, w, h, (int)w / 2 - 48, (int)h / 2 + 12, "Press R to restart", METRO_TEXT_DIM);
+    }
+}
+
+/* ── Pong ───────────────────────────────────────────────────────────────── */
+static void draw_pong(uint32_t *fb, uint32_t w, uint32_t h) {
+    fill_rect(fb, w, h, 0, TITLEBAR_H, (int)w, (int)h - TITLEBAR_H, 0xFF0A0A1E);
+    int cw = (int)w;
+    int ch = (int)h - TITLEBAR_H;
+    int mid_x = cw / 2;
+    int mid_y = TITLEBAR_H + ch / 2;
+    /* center line */
+    fill_rect(fb, w, h, mid_x - 1, TITLEBAR_H, 2, ch, 0xFF222244);
+    /* ball */
+    int bx = (int)(g_pong.ball_x * cw);
+    int by = (int)(g_pong.ball_y * ch) + TITLEBAR_H;
+    fill_rect(fb, w, h, bx - 4, by - 4, 8, 8, 0xFFFFFFFF);
+    /* player paddle */
+    int ppy = (int)(g_pong.paddle_y * ch) + TITLEBAR_H;
+    fill_rect(fb, w, h, 12, ppy - 25, 6, 50, 0xFF3498DB);
+    /* AI paddle */
+    int apy = (int)(g_pong.ball_y * ch) + TITLEBAR_H - 25;
+    if (apy < TITLEBAR_H) apy = TITLEBAR_H;
+    int amax = (int)h - 50;
+    if (apy > amax) apy = amax;
+    fill_rect(fb, w, h, cw - 18, apy, 6, 50, 0xFFE74C3C);
+    /* score */
+    char buf[16];
+    snprintf(buf, 16, "%d  %d", g_pong.player_score, g_pong.ai_score);
+    draw_text(fb, w, h, mid_x - 20, TITLEBAR_H + 10, buf, METRO_TEXT);
+    if (g_pong.gameover) {
+        draw_text(fb, w, h, mid_x - 40, mid_y - 10, "GAME OVER", 0xFFE74C3C);
+        draw_text(fb, w, h, mid_x - 48, mid_y + 12, "Press R to restart", METRO_TEXT_DIM);
+    }
+}
+
+/* ── Tetris ─────────────────────────────────────────────────────────────── */
+#define TETRIS_CELL 18
+static void tetris_get_piece(int type, int rot, int out[4][4]) {
+    for (int r = 0; r < 4; r++)
+        for (int c = 0; c < 4; c++)
+            out[r][c] = tetris_pieces[type][r][c];
+    for (int k = 0; k < rot; k++) {
+        int tmp[4][4];
+        memcpy(tmp, out, sizeof(tmp));
+        for (int r = 0; r < 4; r++)
+            for (int c = 0; c < 4; c++)
+                out[r][c] = tmp[3 - c][r];
+    }
+}
+static int tetris_collide(int type, int rot, int px, int py) {
+    int shape[4][4];
+    tetris_get_piece(type, rot, shape);
+    for (int r = 0; r < 4; r++) {
+        for (int c = 0; c < 4; c++) {
+            if (!shape[r][c]) continue;
+            int gx = px + c, gy = py + r;
+            if (gx < 0 || gx >= TETRIS_COLS || gy >= TETRIS_ROWS) return 1;
+            if (gy >= 0 && g_tetris.grid[gy][gx]) return 1;
+        }
+    }
+    return 0;
+}
+static void tetris_lock(void) {
+    int shape[4][4];
+    tetris_get_piece(g_tetris.piece_type, g_tetris.piece_rot, shape);
+    for (int r = 0; r < 4; r++) {
+        for (int c = 0; c < 4; c++) {
+            if (!shape[r][c]) continue;
+            int gx = g_tetris.piece_x + c, gy = g_tetris.piece_y + r;
+            if (gy >= 0 && gy < TETRIS_ROWS && gx >= 0 && gx < TETRIS_COLS)
+                g_tetris.grid[gy][gx] = (char)(g_tetris.piece_type + 1);
+        }
+    }
+    /* clear lines */
+    int cleared = 0;
+    for (int r = TETRIS_ROWS - 1; r >= 0; r--) {
+        int full = 1;
+        for (int c = 0; c < TETRIS_COLS; c++) {
+            if (!g_tetris.grid[r][c]) { full = 0; break; }
+        }
+        if (full) {
+            for (int r2 = r; r2 > 0; r2--)
+                memcpy(g_tetris.grid[r2], g_tetris.grid[r2 - 1], TETRIS_COLS);
+            memset(g_tetris.grid[0], 0, TETRIS_COLS);
+            cleared++;
+            r++; /* recheck same row */
+        }
+    }
+    if (cleared) {
+        g_tetris.lines += cleared;
+        g_tetris.score += cleared * 100;
+    }
+    /* spawn next */
+    g_tetris.piece_type = g_tetris.next_piece;
+    g_tetris.piece_rot = 0;
+    g_tetris.piece_x = 3;
+    g_tetris.piece_y = 0;
+    g_tetris.next_piece = (int)((uint64_t)uptime() % 7);
+    if (tetris_collide(g_tetris.piece_type, g_tetris.piece_rot,
+                       g_tetris.piece_x, g_tetris.piece_y))
+        g_tetris.gameover = 1;
+}
+static void tetris_drop(void) {
+    if (g_tetris.gameover) return;
+    if (!tetris_collide(g_tetris.piece_type, g_tetris.piece_rot,
+                        g_tetris.piece_x, g_tetris.piece_y + 1)) {
+        g_tetris.piece_y++;
+    } else {
+        tetris_lock();
+    }
+}
+
+static void draw_tetris(uint32_t *fb, uint32_t w, uint32_t h) {
+    fill_rect(fb, w, h, 0, TITLEBAR_H, (int)w, (int)h - TITLEBAR_H, 0xFF0A0A1E);
+    int ox = ((int)w - TETRIS_COLS * TETRIS_CELL) / 2;
+    int oy = TITLEBAR_H + ((int)h - TITLEBAR_H - TETRIS_ROWS * TETRIS_CELL) / 2;
+    /* grid */
+    for (int r = 0; r < TETRIS_ROWS; r++) {
+        for (int c = 0; c < TETRIS_COLS; c++) {
+            int idx = (int)g_tetris.grid[r][c] - 1;
+            uint32_t col = (idx >= 0 && idx < 7) ? (uint32_t)tetris_colors[idx] : 0xFF111133;
+            fill_rect(fb, w, h, ox + c * TETRIS_CELL, oy + r * TETRIS_CELL,
+                      TETRIS_CELL - 1, TETRIS_CELL - 1, col);
+        }
+    }
+    /* current piece */
+    if (!g_tetris.gameover) {
+        int shape[4][4];
+        tetris_get_piece(g_tetris.piece_type, g_tetris.piece_rot, shape);
+        uint32_t pc = tetris_colors[g_tetris.piece_type];
+        for (int r = 0; r < 4; r++) {
+            for (int c = 0; c < 4; c++) {
+                if (!shape[r][c]) continue;
+                int gx = g_tetris.piece_x + c, gy = g_tetris.piece_y + r;
+                if (gy >= 0 && gy < TETRIS_ROWS && gx >= 0 && gx < TETRIS_COLS)
+                    fill_rect(fb, w, h, ox + gx * TETRIS_CELL, oy + gy * TETRIS_CELL,
+                              TETRIS_CELL - 1, TETRIS_CELL - 1, pc);
+            }
+        }
+    }
+    /* info */
+    char buf[32];
+    snprintf(buf, 32, "Score: %d", g_tetris.score);
+    draw_text(fb, w, h, 8, TITLEBAR_H + 6, buf, METRO_TEXT);
+    snprintf(buf, 32, "Lines: %d", g_tetris.lines);
+    draw_text(fb, w, h, 8, TITLEBAR_H + 22, buf, METRO_TEXT_DIM);
+    /* next piece preview */
+    draw_text(fb, w, h, (int)w - 80, TITLEBAR_H + 6, "Next:", METRO_TEXT_DIM);
+    int nshape[4][4];
+    tetris_get_piece(g_tetris.next_piece, 0, nshape);
+    uint32_t npc = tetris_colors[g_tetris.next_piece];
+    int nx = (int)w - 72, ny = TITLEBAR_H + 22;
+    for (int r = 0; r < 4; r++)
+        for (int c = 0; c < 4; c++)
+            if (nshape[r][c])
+                fill_rect(fb, w, h, nx + c * 10, ny + r * 10, 9, 9, npc);
+
+    if (g_tetris.gameover) {
+        draw_text(fb, w, h, (int)w / 2 - 40, (int)h / 2 - 6, "GAME OVER", 0xFFE74C3C);
+        draw_text(fb, w, h, (int)w / 2 - 48, (int)h / 2 + 12, "Press R to restart", METRO_TEXT_DIM);
+    }
+}
+
 /* ── App dispatch table ──────────────────────────────────────────────────── */
 typedef void (*app_draw_fn)(uint32_t *, uint32_t, uint32_t);
 static app_draw_fn g_app_draw[NUM_APPS] = {
     draw_terminal, draw_calculator, draw_files, draw_settings,
     draw_about, draw_clock_app, draw_weather, draw_music,
     draw_mail, draw_photos, draw_store, draw_maps,
+    draw_editor, draw_snake, draw_pong, draw_tetris,
 };
 
 /* ── Title bar rendering (Metro thin bar at top) ──────────────────────────── */
@@ -1470,27 +1850,254 @@ static void process_mouse(void) {
         g_dirty = 1;
 }
 
-/* ── Process keyboard events (for terminal app) ─────────────────────────── */
-static void process_keys(void) {
-    if (g_active_app != APP_TERMINAL) return;
+/* ── Game logic updates (called each frame) ───────────────────────────── */
+static void update_snake(void) {
+    if (g_snake.gameover) return;
+    g_snake.tick++;
+    if (g_snake.tick < 8) return;
+    g_snake.tick = 0;
+    g_dirty = 1;
+    
+    g_snake.dir = g_snake.next_dir;
+    int dx = 0, dy = 0;
+    if (g_snake.dir == 0) dy = -1;
+    else if (g_snake.dir == 1) dy = 1;
+    else if (g_snake.dir == 2) dx = -1;
+    else if (g_snake.dir == 3) dx = 1;
+    
+    int nx = g_snake.seg_x[0] + dx;
+    int ny = g_snake.seg_y[0] + dy;
+    
+    /* wall collision */
+    if (nx < 0 || nx >= SNAKE_COLS || ny < 0 || ny >= SNAKE_ROWS) {
+        g_snake.gameover = 1; return;
+    }
+    /* self collision */
+    for (int i = 0; i < g_snake.seg_len; i++) {
+        if (g_snake.seg_x[i] == nx && g_snake.seg_y[i] == ny) {
+            g_snake.gameover = 1; return;
+        }
+    }
+    /* move */
+    for (int i = g_snake.seg_len - 1; i > 0; i--) {
+        g_snake.seg_x[i] = g_snake.seg_x[i - 1];
+        g_snake.seg_y[i] = g_snake.seg_y[i - 1];
+    }
+    g_snake.seg_x[0] = nx; g_snake.seg_y[0] = ny;
+    
+    /* food */
+    if (nx == g_snake.food_x && ny == g_snake.food_y) {
+        g_snake.seg_len++;
+        if (g_snake.seg_len > SNAKE_MAX) g_snake.seg_len = SNAKE_MAX;
+        g_snake.score += 10;
+        g_snake.seg_x[g_snake.seg_len - 1] = g_snake.seg_x[g_snake.seg_len - 2];
+        g_snake.seg_y[g_snake.seg_len - 1] = g_snake.seg_y[g_snake.seg_len - 2];
+        /* new food */
+        g_snake.food_x = (g_snake.food_x + 7) % SNAKE_COLS;
+        g_snake.food_y = (g_snake.food_y + 13) % SNAKE_ROWS;
+    }
+}
 
+static void update_pong(void) {
+    if (g_pong.gameover) return;
+    g_pong.tick++;
+    if (g_pong.tick < 3) return;
+    g_pong.tick = 0;
+    g_dirty = 1;
+    
+    g_pong.ball_x += g_pong.ball_dx;
+    g_pong.ball_y += g_pong.ball_dy;
+    
+    /* top/bottom bounce */
+    if (g_pong.ball_y < 0.02f || g_pong.ball_y > 0.98f)
+        g_pong.ball_dy = -g_pong.ball_dy;
+    
+    /* player paddle */
+    int cw = (int)g_info.width;
+    int ch = (int)g_info.height - TITLEBAR_H;
+    int bx = (int)(g_pong.ball_x * cw);
+    int by = (int)(g_pong.ball_y * ch) + TITLEBAR_H;
+    int ppy = (int)(g_pong.paddle_y * ch) + TITLEBAR_H;
+    
+    if (bx < 24 && bx > 6 && by >= ppy - 25 && by <= ppy + 25) {
+        g_pong.ball_dx = -g_pong.ball_dx;
+        g_pong.ball_x += g_pong.ball_dx * 2;
+    }
+    
+    /* AI paddle follows ball */
+    float target = g_pong.ball_y;
+    if (g_pong.paddle_y < target - 0.03f) g_pong.paddle_y += 0.02f;
+    if (g_pong.paddle_y > target + 0.03f) g_pong.paddle_y -= 0.02f;
+    
+    /* scoring */
+    if (g_pong.ball_x < -0.02f) {
+        g_pong.ai_score++;
+        if (g_pong.ai_score >= 10) g_pong.gameover = 1;
+        else { g_pong.ball_x = 0.5f; g_pong.ball_y = 0.5f; }
+    }
+    if (g_pong.ball_x > 1.02f) {
+        g_pong.player_score++;
+        if (g_pong.player_score >= 10) g_pong.gameover = 1;
+        else { g_pong.ball_x = 0.5f; g_pong.ball_y = 0.5f; }
+    }
+}
+
+static void update_tetris(void) {
+    if (g_tetris.gameover) return;
+    g_tetris.tick++;
+    if (g_tetris.tick < 30) return;
+    g_tetris.tick = 0;
+    g_dirty = 1;
+    tetris_drop();
+}
+
+/* ── Process keyboard events ──────────────────────────────────────────── */
+static void process_keys(void) {
     key_event_t ev;
     while (read_keys(&ev) == 0) {
         if (!ev.pressed) continue;
 
-        int c = keycode_to_ascii(ev.keycode, ev.mods);
-        if (c == '\n') {
-            term_run_shell();
-            g_dirty = 1;
-        } else if (c == '\b') {
-            if (g_term.input_len > 0) {
-                g_term.input[--g_term.input_len] = '\0';
+        if (g_active_app == APP_TERMINAL) {
+            int c = keycode_to_ascii(ev.keycode, ev.mods);
+            if (c == '\n') {
+                term_run_shell();
+                g_dirty = 1;
+            } else if (c == '\b') {
+                if (g_term.input_len > 0) {
+                    g_term.input[--g_term.input_len] = '\0';
+                    g_dirty = 1;
+                }
+            } else if (c > 0 && c < 128 && g_term.input_len < 255) {
+                g_term.input[g_term.input_len++] = (char)c;
+                g_term.input[g_term.input_len] = '\0';
                 g_dirty = 1;
             }
-        } else if (c > 0 && c < 128 && g_term.input_len < 255) {
-            g_term.input[g_term.input_len++] = (char)c;
-            g_term.input[g_term.input_len] = '\0';
-            g_dirty = 1;
+        } else if (g_active_app == APP_EDITOR) {
+            int c = keycode_to_ascii(ev.keycode, ev.mods);
+            if (c == '\n') {
+                if (g_editor.num_lines < EDITOR_ROWS) {
+                    for (int r = g_editor.num_lines; r > g_editor.row; r--)
+                        strcpy(g_editor.lines[r], g_editor.lines[r - 1]);
+                    int rest = (int)strlen(g_editor.lines[g_editor.row] + g_editor.col);
+                    memmove(g_editor.lines[g_editor.row + 1],
+                            g_editor.lines[g_editor.row] + g_editor.col, (size_t)rest + 1);
+                    g_editor.lines[g_editor.row][g_editor.col] = '\0';
+                    g_editor.num_lines++;
+                    g_editor.row++;
+                    g_editor.col = 0;
+                    if (g_editor.row >= g_editor.scroll_row + ((int)g_info.height - TITLEBAR_H - 20) / (FONT_H + 4))
+                        g_editor.scroll_row++;
+                    g_dirty = 1;
+                }
+            } else if (c == '\b') {
+                if (g_editor.col > 0) {
+                    int len = (int)strlen(g_editor.lines[g_editor.row]);
+                    if (g_editor.col <= len) {
+                        memmove(g_editor.lines[g_editor.row] + g_editor.col - 1,
+                                g_editor.lines[g_editor.row] + g_editor.col,
+                                (size_t)(len - g_editor.col + 1));
+                    }
+                    g_editor.col--;
+                    g_dirty = 1;
+                } else if (g_editor.row > 0) {
+                    int prev_len = (int)strlen(g_editor.lines[g_editor.row - 1]);
+                    g_editor.col = prev_len;
+                    char *dst = g_editor.lines[g_editor.row - 1] + prev_len;
+                    char *src = g_editor.lines[g_editor.row];
+                    while ((*dst++ = *src++));
+                    for (int r = g_editor.row; r < g_editor.num_lines - 1; r++)
+                        strcpy(g_editor.lines[r], g_editor.lines[r + 1]);
+                    memset(g_editor.lines[g_editor.num_lines - 1], 0, EDITOR_COLS + 1);
+                    g_editor.num_lines--;
+                    g_editor.row--;
+                    if (g_editor.row < g_editor.scroll_row)
+                        g_editor.scroll_row--;
+                    g_dirty = 1;
+                }
+            } else if (c > 0 && c < 128) {
+                int len = (int)strlen(g_editor.lines[g_editor.row]);
+                if (len < EDITOR_COLS) {
+                    memmove(g_editor.lines[g_editor.row] + g_editor.col + 1,
+                            g_editor.lines[g_editor.row] + g_editor.col,
+                            (size_t)(len - g_editor.col + 1));
+                    g_editor.lines[g_editor.row][g_editor.col] = (char)c;
+                    g_editor.col++;
+                    g_dirty = 1;
+                }
+            } else if (ev.keycode == KEY_LEFT) {
+                if (g_editor.col > 0) g_editor.col--;
+                g_dirty = 1;
+            } else if (ev.keycode == KEY_RIGHT) {
+                int len = (int)strlen(g_editor.lines[g_editor.row]);
+                if (g_editor.col < len) g_editor.col++;
+                g_dirty = 1;
+            } else if (ev.keycode == KEY_UP) {
+                if (g_editor.row > 0) {
+                    g_editor.row--;
+                    int len = (int)strlen(g_editor.lines[g_editor.row]);
+                    if (g_editor.col > len) g_editor.col = len;
+                    if (g_editor.row < g_editor.scroll_row)
+                        g_editor.scroll_row--;
+                    g_dirty = 1;
+                }
+            } else if (ev.keycode == KEY_DOWN) {
+                if (g_editor.row < g_editor.num_lines - 1) {
+                    g_editor.row++;
+                    int len = (int)strlen(g_editor.lines[g_editor.row]);
+                    if (g_editor.col > len) g_editor.col = len;
+                    int rows = ((int)g_info.height - TITLEBAR_H - 20) / (FONT_H + 4);
+                    if (g_editor.row >= g_editor.scroll_row + rows)
+                        g_editor.scroll_row++;
+                    g_dirty = 1;
+                }
+            }
+        } else if (g_active_app == APP_SNAKE) {
+            if (g_snake.gameover && ev.keycode == 0x15) { /* R */
+                snake_reset(); g_dirty = 1;
+            } else if (!g_snake.gameover) {
+                if (ev.keycode == KEY_UP || ev.keycode == 0x1A) g_snake.next_dir = 0; /* W */
+                else if (ev.keycode == KEY_DOWN || ev.keycode == 0x16) g_snake.next_dir = 1; /* S */
+                else if (ev.keycode == KEY_LEFT || ev.keycode == 0x04) g_snake.next_dir = 2; /* A */
+                else if (ev.keycode == KEY_RIGHT || ev.keycode == 0x07) g_snake.next_dir = 3; /* D */
+            }
+        } else if (g_active_app == APP_PONG) {
+            if (g_pong.gameover && ev.keycode == 0x15) { /* R */
+                pong_reset(); g_dirty = 1;
+            } else if (!g_pong.gameover) {
+                if (ev.keycode == KEY_UP || ev.keycode == 0x1A) { /* W */
+                    g_pong.paddle_y -= 0.06f;
+                    if (g_pong.paddle_y < 0.05f) g_pong.paddle_y = 0.05f;
+                }
+                if (ev.keycode == KEY_DOWN || ev.keycode == 0x16) { /* S */
+                    g_pong.paddle_y += 0.06f;
+                    if (g_pong.paddle_y > 0.95f) g_pong.paddle_y = 0.95f;
+                }
+            }
+        } else if (g_active_app == APP_TETRIS) {
+            if (g_tetris.gameover && ev.keycode == 0x15) { /* R */
+                tetris_reset(); g_dirty = 1;
+            } else if (!g_tetris.gameover) {
+                if (ev.keycode == KEY_LEFT || ev.keycode == 0x04) { /* A */
+                    if (!tetris_collide(g_tetris.piece_type, g_tetris.piece_rot,
+                                        g_tetris.piece_x - 1, g_tetris.piece_y))
+                        g_tetris.piece_x--;
+                    g_dirty = 1;
+                } else if (ev.keycode == KEY_RIGHT || ev.keycode == 0x07) { /* D */
+                    if (!tetris_collide(g_tetris.piece_type, g_tetris.piece_rot,
+                                        g_tetris.piece_x + 1, g_tetris.piece_y))
+                        g_tetris.piece_x++;
+                    g_dirty = 1;
+                } else if (ev.keycode == KEY_DOWN || ev.keycode == 0x16) { /* S */
+                    tetris_drop();
+                    g_dirty = 1;
+                } else if (ev.keycode == KEY_UP || ev.keycode == 0x1A) { /* W */
+                    int new_rot = (g_tetris.piece_rot + 1) % 4;
+                    if (!tetris_collide(g_tetris.piece_type, new_rot,
+                                        g_tetris.piece_x, g_tetris.piece_y))
+                        g_tetris.piece_rot = new_rot;
+                    g_dirty = 1;
+                }
+            }
         }
     }
 }
@@ -1508,10 +2115,14 @@ int main(void) {
 
     calc_reset();
 
-    /* Initialize terminal with welcome */
+    /* Initialize apps */
     memset(&g_term, 0, sizeof(g_term));
     term_add_scroll("Zirvium OS Terminal v0.1");
     term_add_scroll("");
+    editor_reset();
+    snake_reset();
+    pong_reset();
+    tetris_reset();
 
     size_t fb_size = (size_t)g_buf.stride * g_buf.height;
     render_frame();
@@ -1524,6 +2135,11 @@ int main(void) {
     for (;;) {
         process_mouse();
         process_keys();
+
+        /* Update active game */
+        if (g_active_app == APP_SNAKE)  update_snake();
+        if (g_active_app == APP_PONG)   update_pong();
+        if (g_active_app == APP_TETRIS) update_tetris();
 
         if (g_anim.active) {
             g_anim.frame++;
