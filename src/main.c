@@ -1,4 +1,5 @@
 #include <zirvflux.h>
+#include <zirvtk.h>
 #include <unistd.h>
 #include <stdio.h>
 #include <datetime.h>
@@ -432,32 +433,12 @@ static int smoothstep(int t) {
 
 /* ── Drawing helpers ──────────────────────────────────────────────────── */
 static uint32_t blend(uint32_t fg, uint32_t bg, uint8_t alpha) {
-    uint8_t fr = (fg >> 16) & 0xFF, fg_ = (fg >> 8) & 0xFF, fb = fg & 0xFF;
-    uint8_t br = (bg >> 16) & 0xFF, bg_ = (bg >> 8) & 0xFF, bb = bg & 0xFF;
-    uint8_t r = (uint8_t)(((uint32_t)fr * alpha + (uint32_t)br * (255 - alpha)) / 255);
-    uint8_t g = (uint8_t)(((uint32_t)fg_ * alpha + (uint32_t)bg_ * (255 - alpha)) / 255);
-    uint8_t b = (uint8_t)(((uint32_t)fb * alpha + (uint32_t)bb * (255 - alpha)) / 255);
-    return 0xFF000000u | ((uint32_t)r << 16) | ((uint32_t)g << 8) | (uint32_t)b;
+    return ztk_fb_blend(fg, bg, alpha);
 }
 
 static void fill_rect(uint32_t *fb, uint32_t fb_w, uint32_t fb_h,
                       int x, int y, int w, int h, uint32_t color) {
-    for (int row = 0; row < h; row++) {
-        int py = y + row;
-        if (py < 0 || py >= (int)fb_h) continue;
-        uint32_t base = (uint32_t)py * fb_w;
-        for (int col = 0; col < w; col++) {
-            int px = x + col;
-            if (px < 0 || px >= (int)fb_w) continue;
-            fb[base + (uint32_t)px] = color;
-        }
-    }
-}
-
-static void put_px(uint32_t *fb, uint32_t fb_w, uint32_t fb_h,
-                   int x, int y, uint32_t color) {
-    if (x < 0 || y < 0 || x >= (int)fb_w || y >= (int)fb_h) return;
-    fb[(uint32_t)y * fb_w + (uint32_t)x] = color;
+    ztk_fb_fill_rect(fb, fb_w, fb_h, x, y, (uint32_t)(w > 0 ? w : 0), (uint32_t)(h > 0 ? h : 0), color);
 }
 
 /* ── 8x13 bitmap font ─────────────────────────────────────────────────── */
@@ -590,23 +571,7 @@ static void draw_char(uint32_t *fb, uint32_t fb_w, uint32_t fb_h,
 
 static void draw_char_scaled(uint32_t *fb, uint32_t fb_w, uint32_t fb_h,
                              int x, int y, char c, uint32_t color) {
-    const uint8_t *bm = font_get(c);
-    int s = g_font_scale;
-    for (int row = 0; row < FONT_H && (y + row * s) < (int)fb_h; row++) {
-        uint8_t bits = bm[row];
-        if (bits == 0) continue;
-        for (int col = 0; col < FONT_W && (x + col * s) < (int)fb_w; col++) {
-            if (bits & (1 << (7 - col))) {
-                for (int dy = 0; dy < s; dy++) {
-                    for (int dx = 0; dx < s; dx++) {
-                        int px = x + col * s + dx, py = y + row * s + dy;
-                        if (px >= 0 && py >= 0 && px < (int)fb_w && py < (int)fb_h)
-                            fb[(uint32_t)py * fb_w + (uint32_t)px] = color;
-                    }
-                }
-            }
-        }
-    }
+    ztk_fb_draw_char_scaled(fb, fb_w, fb_h, x, y, (uint8_t)c, color, (uint32_t)g_font_scale);
 }
 
 static void draw_text(uint32_t *fb, uint32_t fb_w, uint32_t fb_h,
@@ -843,18 +808,7 @@ static void draw_icon(uint32_t *fb, uint32_t fb_w, uint32_t fb_h,
 
 static void draw_line(uint32_t *fb, uint32_t fb_w, uint32_t fb_h,
                       int x0, int y0, int x1, int y1, uint32_t color) {
-    int dx = (x1 > x0) ? (x1 - x0) : (x0 - x1);
-    int sx = (x0 < x1) ? 1 : -1;
-    int dy = (y1 > y0) ? (y1 - y0) : (y0 - y1);
-    int sy = (y0 < y1) ? 1 : -1;
-    int err = (dx > dy ? dx : -dy) / 2;
-    for (;;) {
-        put_px(fb, fb_w, fb_h, x0, y0, color);
-        if (x0 == x1 && y0 == y1) break;
-        int e2 = err;
-        if (e2 > -dx) { err -= dy; x0 += sx; }
-        if (e2 < dy) { err += dx; y0 += sy; }
-    }
+    ztk_fb_draw_line(fb, fb_w, fb_h, x0, y0, x1, y1, color);
 }
 
 /* ── Background rendering ─────────────────────────────────────────────── */
