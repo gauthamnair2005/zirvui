@@ -152,6 +152,7 @@ static int last_second = -1;
 #define KEY_DOWN    0x51
 #define KEY_LEFT    0x50
 #define KEY_RIGHT   0x4F
+#define KEY_V       0x19
 #define MOD_LSHIFT  1
 #define MOD_RSHIFT  2
 #define MOD_LCTRL   4
@@ -1589,6 +1590,81 @@ static void draw_shutdown_overlay(uint32_t *fb, uint32_t w, uint32_t h) {
     }
 }
 
+/* ── Boot splash with Zirvium SVG logo ──────────────────────────────────── */
+static void draw_boot_splash(uint32_t *fb, uint32_t w, uint32_t h) {
+    /* Dark gradient background */
+    for (uint32_t y = 0; y < h; y++) {
+        uint8_t r = (uint8_t)(0x0A + ((0x14 - 0x0A) * y) / (h ? h : 1));
+        uint8_t g = (uint8_t)(0x0A + ((0x14 - 0x0A) * y) / (h ? h : 1));
+        uint8_t b = (uint8_t)(0x1E + ((0x3A - 0x1E) * y) / (h ? h : 1));
+        uint32_t c = 0xFF000000u | ((uint32_t)r << 16) | ((uint32_t)g << 8) | b;
+        for (uint32_t x = 0; x < w; x++)
+            fb[y * w + x] = c;
+    }
+
+    /* SVG logo: 7 horizontal lines from zirvworld logo.svg */
+    int logo_data[7][4] = {
+        {28, 36, 8,  0}, {22, 42, 16, 0}, {16, 48, 24, 1},
+        {10, 54, 32, 0}, {16, 48, 40, 1}, {22, 42, 48, 0}, {28, 36, 56, 0},
+    };
+    int logo_size = (w < h ? w : h) / 5;
+    if (logo_size > 480) logo_size = 480;
+    if (logo_size < 160) logo_size = 160;
+    int scale = logo_size / 64;
+
+    int ox = (int)w / 2 - 32 * scale;
+    int oy = (int)h / 3 - 32 * scale;
+    uint32_t light = 0xFFCCCCCCu;
+    uint32_t blue  = 0xFF4488FFu;
+
+    for (int i = 0; i < 7; i++) {
+        int x1 = ox + logo_data[i][0] * scale;
+        int x2 = ox + logo_data[i][1] * scale;
+        int y  = oy + logo_data[i][2] * scale;
+        uint32_t color = logo_data[i][3] ? blue : light;
+        int thick = scale > 2 ? scale * 2 : scale;
+        for (int dy = 0; dy < thick; dy++) {
+            int py = y + dy;
+            if (py < 0 || py >= (int)h) continue;
+            for (int px = x1; px <= x2; px++) {
+                if (px >= 0 && px < (int)w)
+                    fb[(uint32_t)py * w + (uint32_t)px] = color;
+            }
+        }
+    }
+
+    /* Title: "Zirvium" scaled */
+    int saved_scale = g_font_scale;
+    g_font_scale = 3;
+    const char *title = "Zirvium";
+    int tlen = 0;
+    while (title[tlen]) tlen++;
+    int tstep = (FONT_W + 1) * g_font_scale;
+    int tx = (int)w / 2 - (tlen * tstep) / 2;
+    int ty = oy + 64 * scale + 20;
+    for (const char *p = title; *p; p++) {
+        draw_char_scaled(fb, w, h, tx, ty, *p, 0xFF4488FFu);
+        tx += tstep;
+    }
+
+    /* Subtitle */
+    g_font_scale = 1;
+    const char *sub = "MOSIX Operating System";
+    int slen = 0;
+    while (sub[slen]) slen++;
+    int sstep = (FONT_W + 1) * g_font_scale;
+    int sx = (int)w / 2 - (slen * sstep) / 2;
+    int sy = ty + (FONT_H + 1) * 3 + 8;
+    for (const char *p = sub; *p; p++) {
+        draw_char(fb, w, h, sx, sy, *p, 0xFF8888CCu);
+        sx += sstep;
+    }
+    g_font_scale = saved_scale;
+
+    draw_text(fb, w, h, (int)w / 2 - 80, sy + 24,
+              "Loading...", 0xFF666688u);
+}
+
 /* ── Render one frame ──────────────────────────────────────────────────── */
 static void render_frame(void) {
     uint32_t w = g_info.width;
@@ -1831,10 +1907,10 @@ static void process_mouse(void) {
         }
 
         if (left_down && g_exit_hover) {
-            /* Restore stdin/stdout to console before returning to shell */
-            dup2(2, 0);
-            dup2(2, 1);
             zf_disconnect();
+            char *argv[] = { "/bin/shell", NULL };
+            char *envp[] = { NULL };
+            execve("/bin/shell", argv, envp);
             _exit(0);
         }
         if (left_down && g_power_hover) {
@@ -2073,6 +2149,13 @@ static void process_keys(void) {
                     if (g_pong.paddle_y > 0.95f) g_pong.paddle_y = 0.95f;
                 }
             }
+        } else if (ev.keycode == KEY_V) {
+            if (g_active_app == APP_TERMINAL && !g_anim.active) {
+                g_active_app = -1;
+            } else if (g_active_app < 0) {
+                g_active_app = APP_TERMINAL;
+            }
+            g_dirty = 1;
         } else if (g_active_app == APP_TETRIS) {
             if (g_tetris.gameover && ev.keycode == 0x15) { /* R */
                 tetris_reset(); g_dirty = 1;
@@ -2125,6 +2208,13 @@ int main(void) {
     tetris_reset();
 
     size_t fb_size = (size_t)g_buf.stride * g_buf.height;
+
+    /* ── Boot splash ──────────────────────────────────────────────────────── */
+    draw_boot_splash((uint32_t *)compositor_fb, g_info.width, g_info.height);
+    zf_write_buffer(&g_buf, compositor_fb, fb_size);
+    zf_present(&g_buf);
+    msleep(2500);
+
     render_frame();
 
     if (zf_write_buffer(&g_buf, compositor_fb, fb_size) < 0) return 1;
