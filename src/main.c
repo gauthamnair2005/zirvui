@@ -23,14 +23,8 @@ typedef zf_mouse_event_t mouse_event_t;
 #define METRO_TEXT_DIM    0xFF8888AA
 #define METRO_TILE_TERM  0xFF1E90FF
 #define METRO_TILE_CALC  0xFF50C878
-#define METRO_TILE_FILES 0xFFFFD700
 #define METRO_TILE_SETT  0xFF6C7A89
-#define METRO_TILE_ABOUT 0xFF9B59B6
 #define METRO_TILE_CLOCK 0xFF2C3E50
-#define METRO_TILE_WTHR  0xFF3498DB
-#define METRO_TILE_MUSIC 0xFFE74C3C
-#define METRO_TILE_MAIL  0xFFE67E22
-#define METRO_TILE_PHOTO 0xFF1ABC9C
 #define METRO_TILE_EDITR 0xFF8E44AD
 #define METRO_TILE_SNAKE 0xFF27AE60
 #define METRO_TILE_PONG  0xFF2980B9
@@ -52,16 +46,8 @@ typedef zf_mouse_event_t mouse_event_t;
 enum {
     ICON_TERMINAL,
     ICON_CALC,
-    ICON_FILES,
     ICON_SETTINGS,
-    ICON_ABOUT,
     ICON_CLOCK,
-    ICON_WEATHER,
-    ICON_MUSIC,
-    ICON_MAIL,
-    ICON_PHOTOS,
-    ICON_STORE,
-    ICON_MAPS,
     ICON_EDITOR,
     ICON_SNAKE,
     ICON_PONG,
@@ -73,16 +59,8 @@ enum {
 enum {
     APP_TERMINAL,
     APP_CALCULATOR,
-    APP_FILES,
     APP_SETTINGS,
-    APP_ABOUT,
     APP_CLOCK,
-    APP_WEATHER,
-    APP_MUSIC,
-    APP_MAIL,
-    APP_PHOTOS,
-    APP_STORE,
-    APP_MAPS,
     APP_EDITOR,
     APP_SNAKE,
     APP_PONG,
@@ -99,16 +77,8 @@ typedef struct {
 static const AppDef g_apps[NUM_APPS] = {
     {"Terminal",   METRO_TILE_TERM,  ICON_TERMINAL},
     {"Calculator", METRO_TILE_CALC,  ICON_CALC},
-    {"Files",      METRO_TILE_FILES, ICON_FILES},
     {"Settings",   METRO_TILE_SETT,  ICON_SETTINGS},
-    {"About",      METRO_TILE_ABOUT, ICON_ABOUT},
     {"Clock",      METRO_TILE_CLOCK, ICON_CLOCK},
-    {"Weather",    METRO_TILE_WTHR,  ICON_WEATHER},
-    {"Music",      METRO_TILE_MUSIC, ICON_MUSIC},
-    {"Mail",       METRO_TILE_MAIL,  ICON_MAIL},
-    {"Photos",     METRO_TILE_PHOTO, ICON_PHOTOS},
-    {"Store",      METRO_TILE_SETT,  ICON_STORE},
-    {"Maps",       METRO_TILE_TERM,  ICON_MAPS},
     {"Editor",     METRO_TILE_EDITR, ICON_EDITOR},
     {"Snake",      METRO_TILE_SNAKE, ICON_SNAKE},
     {"Pong",       METRO_TILE_PONG,  ICON_PONG},
@@ -130,6 +100,12 @@ static int g_active_app = -1;
 static int g_tile_hover = -1;
 static int g_back_hover = 0;
 static int g_font_scale = 1;
+static int g_dark_theme = 1;    /* 1=dark, 0=light */
+static int g_brightness = 80;   /* 0-100 */
+static int g_frame_rate = 60;   /* 30 or 60 */
+static int g_wifi_on = 1;
+static int g_bt_on = 0;
+static int g_volume = 75;       /* 0-100 */
 static int g_exit_hover = 0;
 static int g_power_hover = 0;
 
@@ -648,26 +624,16 @@ static void draw_icon(uint32_t *fb, uint32_t fb_w, uint32_t fb_h,
             }
             break;
         }
-        case ICON_FILES: {
-            int s = size / 3;
-            fill_rect(fb, fb_w, fb_h, cx - s, cy - s + 2, s * 2, s * 2 - 2, color);
-            fill_rect(fb, fb_w, fb_h, cx - s, cy - s - 2, s, s / 2, color);
-            break;
-        }
         case ICON_SETTINGS: {
-            int r = size / 4;
-            int sr = size / 10;
-            if (sr < 1) sr = 1;
+            int r = size / 3;
             for (int i = 0; i < 4; i++) {
-                int angle = i * 2;
-                int lx = cx + (r * (angle == 0 ? 1 : (angle == 2 ? -1 : 0))) / 2;
-                int ly = cy + (r * (angle == 1 ? 1 : (angle == 3 ? -1 : 0))) / 2;
-                (void)lx; (void)ly;
+                int angle = i * 90;
+                (void)angle;
             }
-            fill_rect(fb, fb_w, fb_h, cx - r / 2, cy - sr, r, sr * 2, color);
-            fill_rect(fb, fb_w, fb_h, cx - sr, cy - r / 2, sr * 2, r, color);
-            int cir = size / 6;
-            int cir2 = size / 10;
+            fill_rect(fb, fb_w, fb_h, cx - r / 2, cy - r/6, r, r/3, color);
+            fill_rect(fb, fb_w, fb_h, cx - r/6, cy - r / 2, r/3, r, color);
+            int cir = size / 5;
+            int cir2 = size / 8;
             for (int dy = -cir; dy <= cir; dy++) {
                 for (int dx = -cir; dx <= cir; dx++) {
                     if (dx * dx + dy * dy <= cir * cir && dx * dx + dy * dy >= cir2 * cir2) {
@@ -677,21 +643,6 @@ static void draw_icon(uint32_t *fb, uint32_t fb_w, uint32_t fb_h,
                     }
                 }
             }
-            break;
-        }
-        case ICON_ABOUT: {
-            int r = size / 3;
-            for (int dy = -r; dy <= r; dy++) {
-                for (int dx = -r; dx <= r; dx++) {
-                    if (dx * dx + dy * dy <= r * r) {
-                        int px = cx + dx, py = cy + dy;
-                        if (px >= 0 && py >= 0 && px < (int)fb_w && py < (int)fb_h)
-                            fb[(uint32_t)py * fb_w + (uint32_t)px] = color;
-                    }
-                }
-            }
-            fill_rect(fb, fb_w, fb_h, cx - 1, cy - r / 2, 3, 2, METRO_BG);
-            fill_rect(fb, fb_w, fb_h, cx - 1, cy + 1, 3, r / 2, METRO_BG);
             break;
         }
         case ICON_CLOCK: {
@@ -707,67 +658,6 @@ static void draw_icon(uint32_t *fb, uint32_t fb_w, uint32_t fb_h,
             }
             fill_rect(fb, fb_w, fb_h, cx - 1, cy - r / 2, 2, r / 2 + 2, color);
             fill_rect(fb, fb_w, fb_h, cx, cy, r / 3, 2, color);
-            break;
-        }
-        case ICON_WEATHER: {
-            int r = size / 4;
-            for (int dy = -r; dy <= r; dy++) {
-                for (int dx = -r; dx <= r; dx++) {
-                    if (dx * dx + dy * dy <= r * r) {
-                        int px = cx + dx, py = cy + dy;
-                        if (px >= 0 && py >= 0 && px < (int)fb_w && py < (int)fb_h)
-                            fb[(uint32_t)py * fb_w + (uint32_t)px] = color;
-                    }
-                }
-            }
-            int ray_len = r + 5;
-            draw_line(fb, fb_w, fb_h, cx, cy - r, cx, cy - ray_len, color);
-            draw_line(fb, fb_w, fb_h, cx, cy + r, cx, cy + ray_len, color);
-            draw_line(fb, fb_w, fb_h, cx - r, cy, cx - ray_len, cy, color);
-            draw_line(fb, fb_w, fb_h, cx + r, cy, cx + ray_len, cy, color);
-            draw_line(fb, fb_w, fb_h, cx - r * 3 / 4, cy - r * 3 / 4,
-                      cx - ray_len * 3 / 4, cy - ray_len * 3 / 4, color);
-            draw_line(fb, fb_w, fb_h, cx + r * 3 / 4, cy + r * 3 / 4,
-                      cx + ray_len * 3 / 4, cy + ray_len * 3 / 4, color);
-            break;
-        }
-        case ICON_MUSIC: {
-            draw_char(fb, fb_w, fb_h, cx - 4, cy - 5, '~', color);
-            draw_char(fb, fb_w, fb_h, cx + 2, cy - 5, '~', color);
-            draw_char(fb, fb_w, fb_h, cx - 4, cy + 1, '~', color);
-            draw_char(fb, fb_w, fb_h, cx + 2, cy + 1, '~', color);
-            break;
-        }
-        case ICON_MAIL: {
-            int s = size / 3;
-            fill_rect(fb, fb_w, fb_h, cx - s, cy - s / 2, s * 2, s, color);
-            draw_line(fb, fb_w, fb_h, cx - s, cy - s / 2, cx, cy + s / 4, color);
-            draw_line(fb, fb_w, fb_h, cx + s, cy - s / 2, cx, cy + s / 4, color);
-            break;
-        }
-        case ICON_PHOTOS: {
-            int s = size / 4;
-            for (int dy = -s; dy <= s; dy++) {
-                for (int dx = -s; dx <= s; dx++) {
-                    int px = cx + dx, py = cy + dy;
-                    if (px >= 0 && py >= 0 && px < (int)fb_w && py < (int)fb_h) {
-                        int v = (dx * 3 + dy * 5) % 256;
-                        fb[(uint32_t)py * fb_w + (uint32_t)px] = 0xFF000000u | ((uint32_t)(128 + v / 2) << 16) | ((uint32_t)(100 + v / 3) << 8) | (uint32_t)(200 - v / 3);
-                    }
-                }
-            }
-            break;
-        }
-        case ICON_STORE: {
-            draw_char(fb, fb_w, fb_h, cx - 7, cy - 4, 'S', color);
-            draw_char(fb, fb_w, fb_h, cx + 1, cy - 4, 't', color);
-            draw_char(fb, fb_w, fb_h, cx - 3, cy + 4, 'o', color);
-            draw_char(fb, fb_w, fb_h, cx + 5, cy + 4, 'r', color);
-            break;
-        }
-        case ICON_MAPS: {
-            draw_line(fb, fb_w, fb_h, cx - size / 3, cy + size / 4, cx, cy - size / 4, color);
-            draw_line(fb, fb_w, fb_h, cx + size / 3, cy + size / 4, cx, cy - size / 4, color);
             break;
         }
         case ICON_EDITOR: {
@@ -818,23 +708,30 @@ static void render_bg(uint32_t *fb, uint32_t w, uint32_t h) {
         return;
     }
     for (uint32_t y = 0; y < h; y++) {
-        uint32_t top_h = h * 2 / 3;
-        uint32_t c;
-        if (y < top_h) {
-            uint8_t r = (uint8_t)(0x1A + ((0x16 - 0x1A) * y) / top_h);
-            uint8_t g = (uint8_t)(0x1A + ((0x21 - 0x1A) * y) / top_h);
-            uint8_t b = (uint8_t)(0x2E + ((0x3E - 0x2E) * y) / top_h);
-            c = 0xFF000000u | ((uint32_t)r << 16) | ((uint32_t)g << 8) | b;
+        if (g_dark_theme) {
+            uint32_t top_h = h * 2 / 3;
+            uint32_t c;
+            if (y < top_h) {
+                uint8_t r = (uint8_t)(0x1A + ((0x16 - 0x1A) * y) / top_h);
+                uint8_t g = (uint8_t)(0x1A + ((0x21 - 0x1A) * y) / top_h);
+                uint8_t b = (uint8_t)(0x2E + ((0x3E - 0x2E) * y) / top_h);
+                c = 0xFF000000u | ((uint32_t)r << 16) | ((uint32_t)g << 8) | b;
+            } else {
+                uint32_t dy = y - top_h;
+                uint32_t bh = h - top_h;
+                uint8_t r = (uint8_t)(0x16 + ((0x12 - 0x16) * dy) / bh);
+                uint8_t g = (uint8_t)(0x21 + ((0x1A - 0x21) * dy) / bh);
+                uint8_t b = (uint8_t)(0x3E + ((0x2A - 0x3E) * dy) / bh);
+                c = 0xFF000000u | ((uint32_t)r << 16) | ((uint32_t)g << 8) | b;
+            }
+            for (uint32_t x = 0; x < w; x++)
+                fb[y * w + x] = c;
         } else {
-            uint32_t dy = y - top_h;
-            uint32_t bh = h - top_h;
-            uint8_t r = (uint8_t)(0x16 + ((0x12 - 0x16) * dy) / bh);
-            uint8_t g = (uint8_t)(0x21 + ((0x1A - 0x21) * dy) / bh);
-            uint8_t b = (uint8_t)(0x3E + ((0x2A - 0x3E) * dy) / bh);
-            c = 0xFF000000u | ((uint32_t)r << 16) | ((uint32_t)g << 8) | b;
+            uint8_t v = (uint8_t)(0xD0 + ((0xF0 - 0xD0) * y) / h);
+            uint32_t c = 0xFF000000u | ((uint32_t)v << 16) | ((uint32_t)v << 8) | (uint32_t)v;
+            for (uint32_t x = 0; x < w; x++)
+                fb[y * w + x] = c;
         }
-        for (uint32_t x = 0; x < w; x++)
-            fb[y * w + x] = c;
     }
     if (!bg_valid) {
         memcpy(bg_cache, fb, w * h * 4);
@@ -1021,69 +918,10 @@ static void draw_calculator(uint32_t *fb, uint32_t w, uint32_t h) {
     }
 }
 
-static void draw_files(uint32_t *fb, uint32_t w, uint32_t h) {
-    fill_rect(fb, w, h, 0, TITLEBAR_H, (int)w, (int)h - TITLEBAR_H, 0xFF1A1A2E);
-    const char *entries[] = {
-        "[DIR]  ..",
-        "[DIR]  usr",
-        "[DIR]  etc",
-        "[DIR]  home",
-        "[DIR]  mnt",
-        "[DIR]  tmp",
-        "[DIR]  bin",
-        "[DIR]  lib",
-        "[FILE] README.md",
-        "[FILE] LICENSE",
-        "[FILE] init.bin",
-        "[FILE] shell.elf",
-        NULL,
-    };
-    int y = TITLEBAR_H + 10;
-    for (int i = 0; entries[i]; i++) {
-        uint32_t c = (entries[i][0] == '[' && entries[i][1] == 'D') ? 0xFF66CCFF : 0xFFCCCCDD;
-        fill_rect(fb, w, h, 8, y, (int)w - 16, FONT_H + 6, 0xFF222244);
-        draw_text(fb, w, h, 16, y + 2, entries[i], c);
-        y += FONT_H + 10;
-    }
-}
-
-static void draw_settings(uint32_t *fb, uint32_t w, uint32_t h) {
-    fill_rect(fb, w, h, 0, TITLEBAR_H, (int)w, (int)h - TITLEBAR_H, 0xFF1A1A2E);
-    draw_text(fb, w, h, 24, TITLEBAR_H + 20, "Display Settings", METRO_TEXT);
-    fill_rect(fb, w, h, 24, TITLEBAR_H + 50, (int)w - 48, 40, 0xFF222244);
-    draw_text(fb, w, h, 40, TITLEBAR_H + 58, "Font size:", METRO_TEXT);
-    draw_text(fb, w, h, (int)w - 120, TITLEBAR_H + 58,
-              g_font_scale > 1 ? "Large" : "Small", METRO_ACCENT);
-    fill_rect(fb, w, h, 24, TITLEBAR_H + 96, (int)w - 48, 40, 0xFF222244);
-    draw_text(fb, w, h, 40, TITLEBAR_H + 104, "Frame rate:", METRO_TEXT);
-    draw_text(fb, w, h, (int)w - 120, TITLEBAR_H + 104,
-              "60 FPS", METRO_ACCENT);
-    draw_text(fb, w, h, 24, TITLEBAR_H + 160, "Click an option to toggle", METRO_TEXT_DIM);
-}
-
-static void draw_about(uint32_t *fb, uint32_t w, uint32_t h) {
-    fill_rect(fb, w, h, 0, TITLEBAR_H, (int)w, (int)h - TITLEBAR_H, 0xFF1A1A2E);
-    draw_text(fb, w, h, 24, TITLEBAR_H + 30, "Zirvium OS", 0xFF9B59B6);
-    draw_text(fb, w, h, 24, TITLEBAR_H + 56, "Version: 0.1.0", METRO_TEXT);
-    char res[32];
-    int rl = 0;
-    uint32_t rw = g_info.width, rh = g_info.height;
-    if (rw >= 100) { res[rl++] = (char)('0' + rw / 100); rw %= 100; }
-    res[rl++] = (char)('0' + rw / 10); rw %= 10;
-    res[rl++] = (char)('0' + rw); res[rl++] = 'x';
-    if (rh >= 100) { res[rl++] = (char)('0' + rh / 100); rh %= 100; }
-    res[rl++] = (char)('0' + rh / 10); rh %= 10;
-    res[rl++] = (char)('0' + rh); res[rl] = '\0';
-    draw_text(fb, w, h, 24, TITLEBAR_H + 82, "Resolution:", METRO_TEXT_DIM);
-    draw_text(fb, w, h, 140, TITLEBAR_H + 82, res, METRO_ACCENT);
-    draw_text(fb, w, h, 24, TITLEBAR_H + 108, "DisplayJet MAEM encrypted compositor", METRO_TEXT_DIM);
-    draw_text(fb, w, h, 24, TITLEBAR_H + 134, "ZirvTK: Rust GUI toolkit available", METRO_TEXT_DIM);
-    draw_text(fb, w, h, 24, TITLEBAR_H + 160, "Windows 8 Metro UI", 0xFF00B7C3);
-    draw_text(fb, w, h, 24, TITLEBAR_H + 200, "Zirvium", 0xFF8888AA);
-}
-
+/* ── Clock App ──────────────────────────────────────────────────────────── */
 static void draw_clock_app(uint32_t *fb, uint32_t w, uint32_t h) {
-    fill_rect(fb, w, h, 0, TITLEBAR_H, (int)w, (int)h - TITLEBAR_H, 0xFF1A1A2E);
+    uint32_t bg = g_dark_theme ? 0xFF1A1A2E : 0xFFE8E8F0;
+    fill_rect(fb, w, h, 0, TITLEBAR_H, (int)w, (int)h - TITLEBAR_H, bg);
     struct datetime dt;
     if (getdatetime(&dt) == 0) {
         char time_str[9];
@@ -1098,128 +936,113 @@ static void draw_clock_app(uint32_t *fb, uint32_t w, uint32_t h) {
         time_str[8] = '\0';
         int saved_scale = g_font_scale;
         g_font_scale = 4;
-        draw_text(fb, w, h, 24, TITLEBAR_H + 60, time_str, 0xFF2C3E50);
+        draw_text(fb, w, h, 24, TITLEBAR_H + 60, time_str, METRO_ACCENT);
         g_font_scale = saved_scale;
         char date_str[32];
         snprintf(date_str, 32, "%04d-%02d-%02d", dt.year, dt.month, dt.day);
-        draw_text(fb, w, h, 24, TITLEBAR_H + 160, date_str, METRO_TEXT_DIM);
+        draw_text(fb, w, h, 24, TITLEBAR_H + 160, date_str,
+                  g_dark_theme ? METRO_TEXT_DIM : 0xFF666666);
     } else {
         draw_text(fb, w, h, 24, TITLEBAR_H + 60, "No RTC", METRO_TEXT);
     }
 }
 
-static void draw_weather(uint32_t *fb, uint32_t w, uint32_t h) {
-    fill_rect(fb, w, h, 0, TITLEBAR_H, (int)w, (int)h - TITLEBAR_H, 0xFF1A1A2E);
-    draw_text(fb, w, h, 24, TITLEBAR_H + 30, "Seattle, WA", METRO_TEXT);
-    int saved = g_font_scale;
-    g_font_scale = 3;
-    draw_text(fb, w, h, 24, TITLEBAR_H + 70, "72", 0xFF3498DB);
-    g_font_scale = 1;
-    draw_char(fb, w, h, 24 + 3 * (FONT_W + 1) * 3 + 4, TITLEBAR_H + 70, 'o', METRO_TEXT);
-    draw_text(fb, w, h, 24 + 3 * (FONT_W + 1) * 3 + 12, TITLEBAR_H + 78, "F", METRO_TEXT);
-    draw_text(fb, w, h, 24, TITLEBAR_H + 140, "Partly Cloudy", METRO_TEXT_DIM);
-    draw_text(fb, w, h, 24, TITLEBAR_H + 160, "H: 78  L: 62", METRO_TEXT_DIM);
-    draw_text(fb, w, h, 24, TITLEBAR_H + 180, "Humidity: 45%  Wind: 8 mph SW", METRO_TEXT_DIM);
-    g_font_scale = saved;
+/* ── Settings app with functional controls and toggles ──────────────────── */
+#define SETTING_ROW_H  36
+#define SETTING_GAP    4
+
+static int setting_row_y(int row) {
+    return TITLEBAR_H + 32 + row * (SETTING_ROW_H + SETTING_GAP);
 }
 
-static void draw_music(uint32_t *fb, uint32_t w, uint32_t h) {
-    fill_rect(fb, w, h, 0, TITLEBAR_H, (int)w, (int)h - TITLEBAR_H, 0xFF1A1A2E);
-    draw_text(fb, w, h, 24, TITLEBAR_H + 30, "Now Playing", METRO_TEXT_DIM);
-    int saved = g_font_scale;
-    g_font_scale = 2;
-    draw_text(fb, w, h, 24, TITLEBAR_H + 56, "Bohemian Rhapsody", 0xFFE74C3C);
-    g_font_scale = 1;
-    draw_text(fb, w, h, 24, TITLEBAR_H + 90, "Queen - A Night at the Opera", METRO_TEXT_DIM);
-    uint32_t prog = 0xFF222244;
-    fill_rect(fb, w, h, 24, TITLEBAR_H + 120, (int)w - 48, 6, prog);
-    fill_rect(fb, w, h, 24, TITLEBAR_H + 120, ((int)w - 48) * 3 / 10, 6, 0xFFE74C3C);
-    draw_text(fb, w, h, 24, TITLEBAR_H + 132, "1:23", METRO_TEXT_DIM);
-    draw_text(fb, w, h, (int)w - 80, TITLEBAR_H + 132, "5:55", METRO_TEXT_DIM);
-    struct { const char *l; int x; } ctrls[] = {
-        {"<<", (int)w / 2 - 80},
-        {"||", (int)w / 2 - 16},
-        {">>", (int)w / 2 + 48},
-        {NULL, 0},
-    };
-    for (int i = 0; ctrls[i].l; i++) {
-        fill_rect(fb, w, h, ctrls[i].x, TITLEBAR_H + 160, 48, 32, 0xFF2A2A4E);
-        draw_text(fb, w, h, ctrls[i].x + 8, TITLEBAR_H + 166, ctrls[i].l, METRO_TEXT);
-    }
-    g_font_scale = saved;
+static void draw_toggle_row(uint32_t *fb, uint32_t w, uint32_t row,
+                            const char *label, const char *val, uint32_t val_color) {
+    int y = setting_row_y(row);
+    fill_rect(fb, w, g_info.height, 24, y, (int)w - 48, SETTING_ROW_H, 0xFF222244);
+    draw_text(fb, w, g_info.height, 36, y + (SETTING_ROW_H - FONT_H) / 2, label, METRO_TEXT);
+    draw_text(fb, w, g_info.height, (int)w - 120, y + (SETTING_ROW_H - FONT_H) / 2, val, val_color);
 }
 
-static void draw_mail(uint32_t *fb, uint32_t w, uint32_t h) {
-    fill_rect(fb, w, h, 0, TITLEBAR_H, (int)w, (int)h - TITLEBAR_H, 0xFF1A1A2E);
-    struct { const char *from, *subj; } mails[] = {
-        {"System", "Welcome to Zirvium OS"},
-        {"Admin", "Kernel build completed"},
-        {"GitHub", "New release: v0.1.0"},
-        {" noreply@zirv ", "Your compositor is running"},
-        {NULL, NULL},
-    };
-    int y = TITLEBAR_H + 16;
-    for (int i = 0; mails[i].from; i++) {
-        fill_rect(fb, w, h, 16, y, (int)w - 32, 40, 0xFF222244);
-        draw_text(fb, w, h, 24, y + 4, mails[i].from, METRO_ACCENT);
-        draw_text(fb, w, h, 24, y + 20, mails[i].subj, METRO_TEXT);
-        y += 46;
-    }
-}
+static void draw_settings(uint32_t *fb, uint32_t w, uint32_t h) {
+    uint32_t bg = g_dark_theme ? 0xFF1A1A2E : 0xFFE8E8F0;
+    uint32_t text_c   = g_dark_theme ? METRO_TEXT : 0xFF222222;
+    uint32_t dim_c    = g_dark_theme ? METRO_TEXT_DIM : 0xFF666666;
+    uint32_t accent_c = g_dark_theme ? METRO_ACCENT : 0xFF0078D4;
+    uint32_t green_c  = 0xFF44CC44;
+    uint32_t bar_bg   = g_dark_theme ? 0xFF333355 : 0xFFCCCCDD;
 
-static void draw_photos(uint32_t *fb, uint32_t w, uint32_t h) {
-    fill_rect(fb, w, h, 0, TITLEBAR_H, (int)w, (int)h - TITLEBAR_H, 0xFF1A1A2E);
-    int grid = 100, gap = 8, start = 24;
-    for (int row = 0; row < 3; row++) {
-        for (int col = 0; col < 4; col++) {
-            int px = start + col * (grid + gap);
-            int py = TITLEBAR_H + 16 + row * (grid + gap);
-            uint32_t c = 0xFF000000 | ((uint32_t)(64 + row * 32 + col * 16) << 16)
-                        | ((uint32_t)(32 + col * 24 + row * 16) << 8)
-                        | (uint32_t)(128 + row * 20 + col * 10);
-            fill_rect(fb, w, h, px, py, grid - 4, grid - 4, c);
-            draw_char(fb, w, h, px + grid / 2 - 4, py + grid / 2 - 6, '~', METRO_TEXT);
-        }
-    }
-}
+    fill_rect(fb, w, h, 0, TITLEBAR_H, (int)w, (int)h - TITLEBAR_H, bg);
 
-static void draw_store(uint32_t *fb, uint32_t w, uint32_t h) {
-    fill_rect(fb, w, h, 0, TITLEBAR_H, (int)w, (int)h - TITLEBAR_H, 0xFF1A1A2E);
-    draw_text(fb, w, h, 24, TITLEBAR_H + 20, "Zirvium Store", METRO_TEXT);
-    struct { const char *name, *desc; uint32_t c; } items[] = {
-        {"ZirvTerm", "Terminal emulator", METRO_TILE_TERM},
-        {"ZirvCalc", "Scientific calculator", METRO_TILE_CALC},
-        {"ZirvFiles", "File manager", METRO_TILE_FILES},
-        {"ZirvMusic", "Music player", METRO_TILE_MUSIC},
-        {"ZirvWeather", "Weather forecast", METRO_TILE_WTHR},
-        {"ZirvMail", "Email client", METRO_TILE_MAIL},
-        {NULL, NULL, 0},
-    };
-    int y = TITLEBAR_H + 50;
-    for (int i = 0; items[i].name; i++) {
-        fill_rect(fb, w, h, 24, y, (int)w - 48, 48, items[i].c);
-        draw_text(fb, w, h, 36, y + 6, items[i].name, METRO_TEXT);
-        draw_text(fb, w, h, 36, y + 26, items[i].desc, METRO_TEXT_DIM);
-        y += 54;
-    }
-}
+    /* ── DISPLAY section ────────────────────────────────────────────── */
+    draw_text(fb, w, h, 24, TITLEBAR_H + 8, "DISPLAY", accent_c);
 
-static void draw_maps(uint32_t *fb, uint32_t w, uint32_t h) {
-    fill_rect(fb, w, h, 0, TITLEBAR_H, (int)w, (int)h - TITLEBAR_H, 0xFF1A1A2E);
-    draw_text(fb, w, h, 24, TITLEBAR_H + 20, "Zirvium Maps", METRO_TEXT);
-    for (int y = 0; y < 8; y++) {
-        for (int x = 0; x < 12; x++) {
-            int px = 24 + x * 80;
-            int py = TITLEBAR_H + 50 + y * 80;
-            uint32_t c = ((x + y) % 2 == 0) ? 0xFF2A3A4E : 0xFF1A2A3E;
-            fill_rect(fb, w, h, px, py, 78, 78, c);
-        }
-    }
-    draw_line(fb, w, h, 24, TITLEBAR_H + 50 + 4 * 80 + 40,
-              24 + 6 * 80, TITLEBAR_H + 50 + 2 * 80 + 40, 0xFFE74C3C);
-    draw_line(fb, w, h, 24 + 6 * 80, TITLEBAR_H + 50 + 2 * 80 + 40,
-              24 + 10 * 80, TITLEBAR_H + 50 + 5 * 80 + 40, 0xFFE74C3C);
-    fill_rect(fb, w, h, 24 + 7 * 80 - 4, TITLEBAR_H + 50 + 3 * 80 - 4, 8, 8, 0xFFE74C3C);
+    int r = 0;
+    /* Row 0: Font Size */
+    draw_toggle_row(fb, w, r, "Font Size",
+                    g_font_scale > 1 ? "Large" : "Small", accent_c);
+
+    /* Row 1: Dark Theme */
+    r = 1;
+    draw_toggle_row(fb, w, r, "Dark Theme",
+                    g_dark_theme ? "On" : "Off", g_dark_theme ? green_c : dim_c);
+
+    /* Row 2: Brightness slider */
+    r = 2;
+    int slid_y = setting_row_y(r) + (SETTING_ROW_H - 16) / 2;
+    draw_text(fb, w, h, 36, setting_row_y(r) + (SETTING_ROW_H - FONT_H) / 2,
+              "Brightness", text_c);
+    int bar_x = 160, bar_w = (int)w - 200;
+    fill_rect(fb, w, h, bar_x, slid_y, bar_w, 16, bar_bg);
+    int fill = bar_w * g_brightness / 100;
+    if (fill > 0) fill_rect(fb, w, h, bar_x, slid_y, fill, 16, accent_c);
+    char bri[8];
+    snprintf(bri, sizeof(bri), "%d%%", g_brightness);
+    draw_text(fb, w, h, bar_x + fill - 16, slid_y + (16 - FONT_H) / 2, bri, METRO_TEXT);
+
+    /* Row 3: Frame Rate */
+    r = 3;
+    draw_toggle_row(fb, w, r, "Frame Rate",
+                    g_frame_rate == 60 ? "60 FPS" : "30 FPS", accent_c);
+
+    /* ── NETWORK section ────────────────────────────────────────────── */
+    r = 4;
+    draw_text(fb, w, h, 24, setting_row_y(r) - 6, "NETWORK", accent_c);
+
+    /* Row 5: Wi-Fi */
+    r = 5;
+    draw_toggle_row(fb, w, r, "Wi-Fi",
+                    g_wifi_on ? "On" : "Off", g_wifi_on ? green_c : dim_c);
+
+    /* Row 6: Bluetooth */
+    r = 6;
+    draw_toggle_row(fb, w, r, "Bluetooth",
+                    g_bt_on ? "On" : "Off", g_bt_on ? green_c : dim_c);
+
+    /* ── AUDIO section ──────────────────────────────────────────────── */
+    r = 7;
+    draw_text(fb, w, h, 24, setting_row_y(r) - 6, "AUDIO", accent_c);
+
+    /* Row 8: Volume slider */
+    r = 8;
+    slid_y = setting_row_y(r) + (SETTING_ROW_H - 16) / 2;
+    draw_text(fb, w, h, 36, setting_row_y(r) + (SETTING_ROW_H - FONT_H) / 2,
+              "Volume", text_c);
+    fill_rect(fb, w, h, bar_x, slid_y, bar_w, 16, bar_bg);
+    fill = bar_w * g_volume / 100;
+    if (fill > 0) fill_rect(fb, w, h, bar_x, slid_y, fill, 16, accent_c);
+    char vol[8];
+    snprintf(vol, sizeof(vol), "%d%%", g_volume);
+    draw_text(fb, w, h, bar_x + fill - 16, slid_y + (16 - FONT_H) / 2, vol, METRO_TEXT);
+
+    /* ── ABOUT section ──────────────────────────────────────────────── */
+    r = 9;
+    draw_text(fb, w, h, 24, setting_row_y(r) - 6, "ABOUT", accent_c);
+    r = 10;
+    draw_text(fb, w, h, 36, setting_row_y(r) + (SETTING_ROW_H - FONT_H) / 2,
+              "Zirvium OS v0.1.0", dim_c);
+    r = 11;
+    draw_text(fb, w, h, 36, setting_row_y(r) + (SETTING_ROW_H - FONT_H) / 2,
+              "DisplayJet MAEM compositor", dim_c);
 }
 
 /* ── Text Editor ───────────────────────────────────────────────────────── */
@@ -1438,10 +1261,8 @@ static void draw_tetris(uint32_t *fb, uint32_t w, uint32_t h) {
 /* ── App dispatch table ──────────────────────────────────────────────────── */
 typedef void (*app_draw_fn)(uint32_t *, uint32_t, uint32_t);
 static app_draw_fn g_app_draw[NUM_APPS] = {
-    draw_terminal, draw_calculator, draw_files, draw_settings,
-    draw_about, draw_clock_app, draw_weather, draw_music,
-    draw_mail, draw_photos, draw_store, draw_maps,
-    draw_editor, draw_snake, draw_pong, draw_tetris,
+    draw_terminal, draw_calculator, draw_settings,
+    draw_clock_app, draw_editor, draw_snake, draw_pong, draw_tetris,
 };
 
 /* ── Title bar rendering (Metro thin bar at top) ──────────────────────────── */
@@ -1811,13 +1632,50 @@ static void process_mouse(void) {
                     calc_press(label[0]);
                     g_dirty = 1;
                 } else if (g_active_app == APP_SETTINGS) {
-                    int sy1 = TITLEBAR_H + 50;
-                    if (point_in(nx, ny, 24, sy1, (int)ww - 48, 40)) {
+                    /* Setting rows use 0-based indices matching draw_settings */
+                    int rw = (int)ww;
+                    int bar_x = 160, bar_w = rw - 200;
+
+                    /* Row 0: Font Size */
+                    if (point_in(nx, ny, 24, setting_row_y(0), rw - 48, SETTING_ROW_H)) {
                         g_font_scale = (g_font_scale > 1) ? 1 : 2;
                         g_dirty = 1;
                     }
-                    int sy2 = TITLEBAR_H + 96;
-                    if (point_in(nx, ny, 24, sy2, (int)ww - 48, 40)) {
+                    /* Row 1: Dark Theme */
+                    if (point_in(nx, ny, 24, setting_row_y(1), rw - 48, SETTING_ROW_H)) {
+                        g_dark_theme = !g_dark_theme;
+                        bg_valid = 0;  /* regenerate background */
+                        g_dirty = 1;
+                    }
+                    /* Row 2: Brightness slider */
+                    if (point_in(nx, ny, bar_x, setting_row_y(2), bar_w, SETTING_ROW_H)) {
+                        int pct = (nx - bar_x) * 100 / bar_w;
+                        if (pct < 0) pct = 0;
+                        if (pct > 100) pct = 100;
+                        g_brightness = pct;
+                        g_dirty = 1;
+                    }
+                    /* Row 3: Frame Rate */
+                    if (point_in(nx, ny, 24, setting_row_y(3), rw - 48, SETTING_ROW_H)) {
+                        g_frame_rate = (g_frame_rate == 60) ? 30 : 60;
+                        g_dirty = 1;
+                    }
+                    /* Row 5: Wi-Fi */
+                    if (point_in(nx, ny, 24, setting_row_y(5), rw - 48, SETTING_ROW_H)) {
+                        g_wifi_on = !g_wifi_on;
+                        g_dirty = 1;
+                    }
+                    /* Row 6: Bluetooth */
+                    if (point_in(nx, ny, 24, setting_row_y(6), rw - 48, SETTING_ROW_H)) {
+                        g_bt_on = !g_bt_on;
+                        g_dirty = 1;
+                    }
+                    /* Row 8: Volume slider */
+                    if (point_in(nx, ny, bar_x, setting_row_y(8), bar_w, SETTING_ROW_H)) {
+                        int pct = (nx - bar_x) * 100 / bar_w;
+                        if (pct < 0) pct = 0;
+                        if (pct > 100) pct = 100;
+                        g_volume = pct;
                         g_dirty = 1;
                     }
                 }
@@ -2230,6 +2088,6 @@ int main(void) {
         }
 
         if (zf_present(&g_buf) != 0) return 1;
-        msleep(16);
+        msleep(g_frame_rate == 60 ? 16 : 33);
     }
 }
