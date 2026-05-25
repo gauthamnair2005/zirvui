@@ -6,6 +6,8 @@
 /* ── Constants shared with main.c ──────────────────────────────── */
 #define TITLEBAR_H 36
 
+extern uint32_t get_accent_color(void);
+
 /* ── Demo app state ────────────────────────────────────────────── */
 #define DEMO_TAB_SHAPES  0
 #define DEMO_TAB_3D      1
@@ -211,6 +213,19 @@ static void draw_3d_shape(uint32_t *fb, uint32_t w, uint32_t h,
 static void draw_3d_tab(uint32_t *fb, uint32_t w, uint32_t h) {
     init_math();
 
+    /* Fill canvas with dark background that incorporates accent color */
+    uint32_t accent = get_accent_color();
+    /* Extract R/G from accent, dim them heavily for a dark canvas tone */
+    uint8_t ar = (uint8_t)(accent >> 16) >> 3;
+    uint8_t ag = (uint8_t)(accent >> 8)  >> 3;
+    uint8_t ab = (uint8_t)(accent)       >> 3;
+    uint32_t canvas = 0xFF000000u | ((uint32_t)(ar > 8 ? ar : 8) << 16)
+                     | ((uint32_t)(ag > 8 ? ag : 8) << 8)
+                     | (uint32_t)(ab > 8 ? ab : 8);
+    /* Also draw a thin accent glow line */
+    ztk_fb_fill_rect(fb, w, h, 0, CONTENT_Y, w, h - CONTENT_Y - 50, canvas);
+    ztk_fb_fill_rect(fb, w, h, 0, CONTENT_Y, w, 2, accent);
+
     int cy = CONTENT_Y + 140;
     int cx_l = w / 4;
     int cx_r = w * 3 / 4;
@@ -219,32 +234,45 @@ static void draw_3d_tab(uint32_t *fb, uint32_t w, uint32_t h) {
     fp_perspective(&proj, 60, 1, 64, 1024);
     fp_look_at(&view, 0, 0, 384, 0, 0, 0);
 
-    /* Cube */
+    /* Cube — use accent-tinted edges */
     fp_identity(&model);
     fp_rotate_y(&model, g_demo_angle);
     fp_rotate_x(&model, (g_demo_angle * 7) / 10);
     fp_mul(&mvp, &view, &model);
     fp_mul(&mvp, &proj, &mvp);
 
-    ztk_fb_draw_text(fb, w, h, cx_l - 24, CONTENT_Y,
+    ztk_fb_draw_text(fb, w, h, cx_l - 24, CONTENT_Y + 6,
                      (const uint8_t *)"Cube (8v 12e 12t)", 0xFF88CCFF);
     draw_3d_shape(fb, w, h, &mvp, cube_verts, 8, cube_edges, 12, cube_edge_cols, cx_l, cy, 100);
 
-    /* Tetrahedron */
+    /* Tetrahedron — use accent color for edges */
     fp_identity(&model);
     fp_rotate_y(&model, (g_demo_angle * 13) / 10);
     fp_rotate_x(&model, (g_demo_angle * 5) / 10 + 30);
     fp_mul(&mvp, &view, &model);
     fp_mul(&mvp, &proj, &mvp);
 
-    ztk_fb_draw_text(fb, w, h, cx_r - 32, CONTENT_Y,
+    ztk_fb_draw_text(fb, w, h, cx_r - 32, CONTENT_Y + 6,
                      (const uint8_t *)"Tetrahedron (4v 6e 4t)", 0xFF88CCFF);
-    draw_3d_shape(fb, w, h, &mvp, tetra_verts, 4, tetra_edges, 6, NULL, cx_r, cy, 8);
+    /* Make tetrahedron use bright accent edges, visible against the dark canvas */
+    uint32_t tetra_cols[6];
+    for (int i = 0; i < 6; i++) {
+        uint32_t c = accent;
+        /* brighten */
+        uint8_t tr = (uint8_t)(c >> 16);
+        uint8_t tg = (uint8_t)(c >> 8);
+        uint8_t tb = (uint8_t)(c);
+        tr = tr + (uint8_t)((255 - tr) * 3 / 4);
+        tg = tg + (uint8_t)((255 - tg) * 3 / 4);
+        tb = tb + (uint8_t)((255 - tb) * 3 / 4);
+        tetra_cols[i] = 0xFF000000u | ((uint32_t)tr << 16) | ((uint32_t)tg << 8) | tb;
+    }
+    draw_3d_shape(fb, w, h, &mvp, tetra_verts, 4, tetra_edges, 6, tetra_cols, cx_r, cy, 8);
 
     char buf[64];
-    snprintf(buf, sizeof(buf), "Rotation: %d  |  auto-rotate enabled", g_demo_angle);
+    snprintf(buf, sizeof(buf), "Angle: %d  |  auto-rotate enabled", g_demo_angle);
     ztk_fb_draw_text(fb, w, h, 20, h - 28, (const uint8_t *)buf, 0xFF888888);
-    ztk_fb_draw_text(fb, w, h, 20, h - 14, (const uint8_t *)"Software fixed-point 3D pipeline + wireframe rasterizer", 0xFF555555);
+    ztk_fb_draw_text(fb, w, h, 20, h - 14, (const uint8_t *)"Fixed-point 3D pipeline  |  accent canvas", 0xFF555555);
 }
 
 /* ── Tab 3: Widgets / Interactive Controls ─────────────────────── */

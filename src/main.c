@@ -139,6 +139,8 @@ static int g_power_hover = 0;
 static int g_wallpaper_style = 0; /* 0-5 */
 static int g_accent_color = 0;    /* 0-7 */
 static int g_anim_frames = 10;    /* replaces g_anim_frames */
+static int g_font_style = 0;      /* 0=Regular, 1=Bold */
+static int g_settings_tab = 0;    /* 0=Display, 1=Network, 2=Audio, 3=About */
 
 /* ── Shutdown confirmation / animation state ──────────────────────────── */
 static int g_confirm_shutdown = 0;   /* 0=off, 1=confirm dialog, 2=animating */
@@ -438,7 +440,7 @@ static int smoothstep(int t) {
     return (t * t * (768 - (t * 2))) / (256 * 256);
 }
 
-static uint32_t get_accent_color(void) {
+uint32_t get_accent_color(void) {
     return accent_colors[g_accent_color];
 }
 
@@ -455,9 +457,27 @@ static void fill_rect(uint32_t *fb, uint32_t fb_w, uint32_t fb_h,
 /* ── 8x13 bitmap font ─────────────────────────────────────────────────── */
 #include "font_8x13.h"
 
+static uint8_t font_8x13_bold[95][13];
+static int font_bold_inited = 0;
+
+static void font_init_bold(void) {
+    if (font_bold_inited) return;
+    font_bold_inited = 1;
+    for (int i = 0; i < 95; i++) {
+        for (int r = 0; r < 13; r++) {
+            uint8_t b = font_8x13[i][r];
+            font_8x13_bold[i][r] = b | (b >> 1) | ((b & 1) ? 0x80 : 0);
+        }
+    }
+}
+
 static const uint8_t *font_get(char c) {
-    if (c >= 32 && c <= 126) return font_8x13[c - 32];
-    return font_8x13[0];
+    int idx = (c >= 32 && c <= 126) ? (c - 32) : 0;
+    if (g_font_style == 1) {
+        font_init_bold();
+        return font_8x13_bold[idx];
+    }
+    return font_8x13[idx];
 }
 
 static void draw_char(uint32_t *fb, uint32_t fb_w, uint32_t fb_h,
@@ -910,9 +930,12 @@ static void draw_clock_app(uint32_t *fb, uint32_t w, uint32_t h) {
 /* ── Settings app with functional controls and toggles ──────────────────── */
 #define SETTING_ROW_H  36
 #define SETTING_GAP    4
+#define SETTINGS_TAB_H 28
+#define SETTINGS_TABS_Y (TITLEBAR_H + 4)
+#define SETTINGS_CONTENT_Y (SETTINGS_TABS_Y + SETTINGS_TAB_H + 8)
 
 static int setting_row_y(int row) {
-    return TITLEBAR_H + 32 + row * (SETTING_ROW_H + SETTING_GAP);
+    return SETTINGS_CONTENT_Y + row * (SETTING_ROW_H + SETTING_GAP);
 }
 
 static void draw_toggle_row(uint32_t *fb, uint32_t w, uint32_t row,
@@ -921,6 +944,21 @@ static void draw_toggle_row(uint32_t *fb, uint32_t w, uint32_t row,
     fill_rect(fb, w, g_info.height, 24, y, (int)w - 48, SETTING_ROW_H, 0xFF222244);
     draw_text(fb, w, g_info.height, 36, y + (SETTING_ROW_H - FONT_H) / 2, label, METRO_TEXT);
     draw_text(fb, w, g_info.height, (int)w - 120, y + (SETTING_ROW_H - FONT_H) / 2, val, val_color);
+}
+
+static const char *g_settings_tab_names[4] = {"Display", "Network", "Audio", "About"};
+
+static void draw_settings_tabs(uint32_t *fb, uint32_t w, uint32_t h) {
+    int tw = w / 4;
+    for (int i = 0; i < 4; i++) {
+        int x = i * tw;
+        uint32_t col = (i == g_settings_tab) ? 0xFF3388CC : 0xFF222244;
+        ztk_fb_fill_rect(fb, w, h, x, SETTINGS_TABS_Y, tw, SETTINGS_TAB_H, col);
+        draw_text(fb, w, h, x + (tw - (int)strlen(g_settings_tab_names[i]) * (FONT_W + 1)) / 2,
+                  SETTINGS_TABS_Y + (SETTINGS_TAB_H - FONT_H) / 2,
+                  g_settings_tab_names[i], METRO_TEXT);
+    }
+    ztk_fb_hline(fb, w, h, 0, SETTINGS_TABS_Y + SETTINGS_TAB_H, w, 0xFF445566);
 }
 
 static void draw_settings(uint32_t *fb, uint32_t w, uint32_t h) {
@@ -932,112 +970,113 @@ static void draw_settings(uint32_t *fb, uint32_t w, uint32_t h) {
     uint32_t bar_bg   = g_dark_theme ? 0xFF333355 : 0xFFCCCCDD;
 
     fill_rect(fb, w, h, 0, TITLEBAR_H, (int)w, (int)h - TITLEBAR_H, bg);
+    draw_settings_tabs(fb, w, h);
 
-    /* ── APPEARANCE section ─────────────────────────────────────────── */
-    draw_text(fb, w, h, 24, TITLEBAR_H + 8, "APPEARANCE", accent_c);
+    int bar_x = 160, bar_w = (int)w - 200;
+    int slid_y, fill;
 
-    int r = 0, bar_x = 160, bar_w = (int)w - 200;
-    int slid_y;
+    switch (g_settings_tab) {
+    case 0: { /* Display tab */
+        int r = 0;
 
-    /* Row 0: Wallpaper */
-    draw_toggle_row(fb, w, r, "Wallpaper",
-                    wallpaper_names[g_wallpaper_style], accent_c);
+        /* Row 0: Wallpaper */
+        draw_toggle_row(fb, w, r, "Wallpaper",
+                        wallpaper_names[g_wallpaper_style], accent_c);
 
-    /* Row 1: Accent Color — draw swatch and name */
-    r = 1;
-    int ay = setting_row_y(r);
-    fill_rect(fb, w, g_info.height, 24, ay, (int)w - 48, SETTING_ROW_H, 0xFF222244);
-    draw_text(fb, w, g_info.height, 36, ay + (SETTING_ROW_H - FONT_H) / 2, "Accent Color", text_c);
-    int swatch_x = (int)w - 140;
-    int swatch_y = ay + (SETTING_ROW_H - 14) / 2;
-    fill_rect(fb, w, g_info.height, swatch_x, swatch_y, 14, 14, accent_colors[g_accent_color]);
-    fill_rect(fb, w, g_info.height, swatch_x, swatch_y, 14, 1, 0x88FFFFFF);
-    fill_rect(fb, w, g_info.height, swatch_x, swatch_y, 1, 14, 0x88FFFFFF);
-    fill_rect(fb, w, g_info.height, swatch_x + 13, swatch_y, 1, 14, 0x44000000);
-    fill_rect(fb, w, g_info.height, swatch_x, swatch_y + 13, 14, 1, 0x44000000);
-    draw_text(fb, w, g_info.height, swatch_x + 20, ay + (SETTING_ROW_H - FONT_H) / 2,
-              accent_names[g_accent_color], accent_c);
+        /* Row 1: Accent Color */
+        r = 1;
+        int ay = setting_row_y(r);
+        fill_rect(fb, w, g_info.height, 24, ay, (int)w - 48, SETTING_ROW_H, 0xFF222244);
+        draw_text(fb, w, g_info.height, 36, ay + (SETTING_ROW_H - FONT_H) / 2, "Accent Color", text_c);
+        int swatch_x = (int)w - 140;
+        int swatch_y = ay + (SETTING_ROW_H - 14) / 2;
+        fill_rect(fb, w, g_info.height, swatch_x, swatch_y, 14, 14, accent_colors[g_accent_color]);
+        fill_rect(fb, w, g_info.height, swatch_x, swatch_y, 14, 1, 0x88FFFFFF);
+        fill_rect(fb, w, g_info.height, swatch_x, swatch_y, 1, 14, 0x88FFFFFF);
+        fill_rect(fb, w, g_info.height, swatch_x + 13, swatch_y, 1, 14, 0x44000000);
+        fill_rect(fb, w, g_info.height, swatch_x, swatch_y + 13, 14, 1, 0x44000000);
+        draw_text(fb, w, g_info.height, swatch_x + 20, ay + (SETTING_ROW_H - FONT_H) / 2,
+                  accent_names[g_accent_color], accent_c);
 
-    /* Row 2: Animation Speed */
-    r = 2;
-    {
-        const char *speed_name;
-        if (g_anim_frames <= 5) speed_name = "Fast";
-        else if (g_anim_frames >= 20) speed_name = "Smooth";
-        else speed_name = "Medium";
-        draw_toggle_row(fb, w, r, "Animation", speed_name, accent_c);
+        /* Row 2: Animation Speed */
+        r = 2;
+        {
+            const char *speed_name;
+            if (g_anim_frames <= 5) speed_name = "Fast";
+            else if (g_anim_frames >= 20) speed_name = "Smooth";
+            else speed_name = "Medium";
+            draw_toggle_row(fb, w, r, "Animation", speed_name, accent_c);
+        }
+
+        /* Row 3: Font Style */
+        r = 3;
+        draw_toggle_row(fb, w, r, "Font Style",
+                        g_font_style ? "Bold" : "Regular", accent_c);
+
+        /* Row 4: Font Size */
+        r = 4;
+        draw_toggle_row(fb, w, r, "Font Size",
+                        g_font_scale > 1 ? "Large" : "Small", accent_c);
+
+        /* Row 5: Dark Theme */
+        r = 5;
+        draw_toggle_row(fb, w, r, "Dark Theme",
+                        g_dark_theme ? "On" : "Off", g_dark_theme ? green_c : dim_c);
+
+        /* Row 6: Brightness slider */
+        r = 6;
+        slid_y = setting_row_y(r) + (SETTING_ROW_H - 16) / 2;
+        draw_text(fb, w, h, 36, slid_y + (16 - FONT_H) / 2, "Brightness", text_c);
+        fill_rect(fb, w, h, bar_x, slid_y, bar_w, 16, bar_bg);
+        fill = bar_w * g_brightness / 100;
+        if (fill > 0) fill_rect(fb, w, h, bar_x, slid_y, fill, 16, accent_c);
+        char bri[8];
+        snprintf(bri, sizeof(bri), "%d%%", g_brightness);
+        draw_text(fb, w, h, bar_x + fill - 16, slid_y + (16 - FONT_H) / 2, bri, METRO_TEXT);
+
+        /* Row 7: Frame Rate */
+        r = 7;
+        draw_toggle_row(fb, w, r, "Frame Rate",
+                        g_frame_rate == 60 ? "60 FPS" : "30 FPS", accent_c);
+        break;
     }
-
-    /* ── DISPLAY section ────────────────────────────────────────────── */
-    r = 3;
-    draw_text(fb, w, h, 24, setting_row_y(r) - 6, "DISPLAY", accent_c);
-
-    /* Row 4: Large Font */
-    r = 4;
-    draw_toggle_row(fb, w, r, "Large Font",
-                    g_font_scale > 1 ? "On" : "Off", accent_c);
-
-    /* Row 5: Dark Theme */
-    r = 5;
-    draw_toggle_row(fb, w, r, "Dark Theme",
-                    g_dark_theme ? "On" : "Off", g_dark_theme ? green_c : dim_c);
-
-    /* Row 6: Brightness slider */
-    r = 6;
-    slid_y = setting_row_y(r) + (SETTING_ROW_H - 16) / 2;
-    draw_text(fb, w, h, 36, setting_row_y(r) + (SETTING_ROW_H - FONT_H) / 2,
-              "Brightness", text_c);
-    fill_rect(fb, w, h, bar_x, slid_y, bar_w, 16, bar_bg);
-    int fill = bar_w * g_brightness / 100;
-    if (fill > 0) fill_rect(fb, w, h, bar_x, slid_y, fill, 16, accent_c);
-    char bri[8];
-    snprintf(bri, sizeof(bri), "%d%%", g_brightness);
-    draw_text(fb, w, h, bar_x + fill - 16, slid_y + (16 - FONT_H) / 2, bri, METRO_TEXT);
-
-    /* Row 7: Frame Rate */
-    r = 7;
-    draw_toggle_row(fb, w, r, "Frame Rate",
-                    g_frame_rate == 60 ? "60 FPS" : "30 FPS", accent_c);
-
-    /* ── NETWORK section ────────────────────────────────────────────── */
-    r = 8;
-    draw_text(fb, w, h, 24, setting_row_y(r) - 6, "NETWORK", accent_c);
-
-    /* Row 9: Wi-Fi */
-    r = 9;
-    draw_toggle_row(fb, w, r, "Wi-Fi",
-                    g_wifi_on ? "On" : "Off", g_wifi_on ? green_c : dim_c);
-
-    /* Row 10: Bluetooth */
-    r = 10;
-    draw_toggle_row(fb, w, r, "Bluetooth",
-                    g_bt_on ? "On" : "Off", g_bt_on ? green_c : dim_c);
-
-    /* ── AUDIO section ──────────────────────────────────────────────── */
-    r = 11;
-    draw_text(fb, w, h, 24, setting_row_y(r) - 6, "AUDIO", accent_c);
-
-    /* Row 12: Volume slider */
-    r = 12;
-    slid_y = setting_row_y(r) + (SETTING_ROW_H - 16) / 2;
-    draw_text(fb, w, h, 36, setting_row_y(r) + (SETTING_ROW_H - FONT_H) / 2,
-              "Volume", text_c);
-    fill_rect(fb, w, h, bar_x, slid_y, bar_w, 16, bar_bg);
-    fill = bar_w * g_volume / 100;
-    if (fill > 0) fill_rect(fb, w, h, bar_x, slid_y, fill, 16, accent_c);
-    char vol[8];
-    snprintf(vol, sizeof(vol), "%d%%", g_volume);
-    draw_text(fb, w, h, bar_x + fill - 16, slid_y + (16 - FONT_H) / 2, vol, METRO_TEXT);
-
-    /* ── ABOUT section ──────────────────────────────────────────────── */
-    r = 13;
-    draw_text(fb, w, h, 24, setting_row_y(r) - 6, "ABOUT", accent_c);
-    r = 14;
-    draw_text(fb, w, h, 36, setting_row_y(r) + (SETTING_ROW_H - FONT_H) / 2,
-              "Zirvium OS v0.1.0", dim_c);
-    r = 15;
-    draw_text(fb, w, h, 36, setting_row_y(r) + (SETTING_ROW_H - FONT_H) / 2,
-              "DisplayJet MAEM compositor", dim_c);
+    case 1: { /* Network tab */
+        int r = 0;
+        draw_toggle_row(fb, w, r, "Wi-Fi",
+                        g_wifi_on ? "On" : "Off", g_wifi_on ? green_c : dim_c);
+        r = 1;
+        draw_toggle_row(fb, w, r, "Bluetooth",
+                        g_bt_on ? "On" : "Off", g_bt_on ? green_c : dim_c);
+        break;
+    }
+    case 2: { /* Audio tab */
+        int r = 0;
+        slid_y = setting_row_y(r) + (SETTING_ROW_H - 16) / 2;
+        draw_text(fb, w, h, 36, slid_y + (16 - FONT_H) / 2, "Volume", text_c);
+        fill_rect(fb, w, h, bar_x, slid_y, bar_w, 16, bar_bg);
+        fill = bar_w * g_volume / 100;
+        if (fill > 0) fill_rect(fb, w, h, bar_x, slid_y, fill, 16, accent_c);
+        char vol[8];
+        snprintf(vol, sizeof(vol), "%d%%", g_volume);
+        draw_text(fb, w, h, bar_x + fill - 16, slid_y + (16 - FONT_H) / 2, vol, METRO_TEXT);
+        break;
+    }
+    case 3: { /* About tab */
+        int r = 0;
+        draw_text(fb, w, h, 36, setting_row_y(r) + (SETTING_ROW_H - FONT_H) / 2,
+                  "Zirvium OS v0.1.0", dim_c);
+        r = 1;
+        draw_text(fb, w, h, 36, setting_row_y(r) + (SETTING_ROW_H - FONT_H) / 2,
+                  "DisplayJet MAEM compositor", dim_c);
+        r = 2;
+        draw_text(fb, w, h, 36, setting_row_y(r) + (SETTING_ROW_H - FONT_H) / 2,
+                  "Kernel: MOSIX x86_64", dim_c);
+        r = 3;
+        draw_text(fb, w, h, 36, setting_row_y(r) + (SETTING_ROW_H - FONT_H) / 2,
+                  "Font: 8x13 bitmap (Regular / Bold)", dim_c);
+        break;
+    }
+    }
 }
 
 /* ── Text Editor ───────────────────────────────────────────────────────── */
@@ -1631,69 +1670,97 @@ static void process_mouse(void) {
                     calc_press(label[0]);
                     g_dirty = 1;
                 } else if (g_active_app == APP_SETTINGS) {
-                    /* Setting rows use 0-based indices matching draw_settings */
                     int rw = (int)ww;
                     int bar_x = 160, bar_w = rw - 200;
 
-                    /* Row 0: Wallpaper (cycle) */
-                    if (point_in(nx, ny, 24, setting_row_y(0), rw - 48, SETTING_ROW_H)) {
-                        g_wallpaper_style = (g_wallpaper_style + 1) % NUM_WALLPAPERS;
-                        bg_valid = 0;
-                        g_dirty = 1;
+                    /* Tab bar hit-test */
+                    if (ny >= SETTINGS_TABS_Y && ny < SETTINGS_TABS_Y + SETTINGS_TAB_H) {
+                        int tw = rw / 4;
+                        for (int i = 0; i < 4; i++) {
+                            if (nx >= i * tw && nx < (i + 1) * tw) {
+                                g_settings_tab = i;
+                                g_dirty = 1;
+                            }
+                        }
                     }
-                    /* Row 1: Accent Color (cycle) */
-                    if (point_in(nx, ny, 24, setting_row_y(1), rw - 48, SETTING_ROW_H)) {
-                        g_accent_color = (g_accent_color + 1) % NUM_ACCENTS;
-                        g_dirty = 1;
+
+                    switch (g_settings_tab) {
+                    case 0: { /* Display tab */
+                        /* Row 0: Wallpaper (cycle) */
+                        if (point_in(nx, ny, 24, setting_row_y(0), rw - 48, SETTING_ROW_H)) {
+                            g_wallpaper_style = (g_wallpaper_style + 1) % NUM_WALLPAPERS;
+                            bg_valid = 0;
+                            g_dirty = 1;
+                        }
+                        /* Row 1: Accent Color (cycle) */
+                        if (point_in(nx, ny, 24, setting_row_y(1), rw - 48, SETTING_ROW_H)) {
+                            g_accent_color = (g_accent_color + 1) % NUM_ACCENTS;
+                            g_dirty = 1;
+                        }
+                        /* Row 2: Animation Speed */
+                        if (point_in(nx, ny, 24, setting_row_y(2), rw - 48, SETTING_ROW_H)) {
+                            if (g_anim_frames <= 5) g_anim_frames = 10;
+                            else if (g_anim_frames >= 20) g_anim_frames = 5;
+                            else g_anim_frames = 20;
+                            g_dirty = 1;
+                        }
+                        /* Row 3: Font Style */
+                        if (point_in(nx, ny, 24, setting_row_y(3), rw - 48, SETTING_ROW_H)) {
+                            g_font_style = g_font_style ? 0 : 1;
+                            g_dirty = 1;
+                        }
+                        /* Row 4: Font Size */
+                        if (point_in(nx, ny, 24, setting_row_y(4), rw - 48, SETTING_ROW_H)) {
+                            g_font_scale = (g_font_scale > 1) ? 1 : 2;
+                            g_dirty = 1;
+                        }
+                        /* Row 5: Dark Theme */
+                        if (point_in(nx, ny, 24, setting_row_y(5), rw - 48, SETTING_ROW_H)) {
+                            g_dark_theme = !g_dark_theme;
+                            bg_valid = 0;
+                            g_dirty = 1;
+                        }
+                        /* Row 6: Brightness slider */
+                        if (point_in(nx, ny, bar_x, setting_row_y(6), bar_w, SETTING_ROW_H)) {
+                            int pct = (nx - bar_x) * 100 / bar_w;
+                            if (pct < 0) pct = 0;
+                            if (pct > 100) pct = 100;
+                            g_brightness = pct;
+                            g_dirty = 1;
+                        }
+                        /* Row 7: Frame Rate */
+                        if (point_in(nx, ny, 24, setting_row_y(7), rw - 48, SETTING_ROW_H)) {
+                            g_frame_rate = (g_frame_rate == 60) ? 30 : 60;
+                            g_dirty = 1;
+                        }
+                        break;
                     }
-                    /* Row 2: Animation Speed (cycle Fast/Medium/Smooth) */
-                    if (point_in(nx, ny, 24, setting_row_y(2), rw - 48, SETTING_ROW_H)) {
-                        if (g_anim_frames <= 5) g_anim_frames = 10;
-                        else if (g_anim_frames >= 20) g_anim_frames = 5;
-                        else g_anim_frames = 20;
-                        g_dirty = 1;
+                    case 1: { /* Network tab */
+                        /* Row 0: Wi-Fi */
+                        if (point_in(nx, ny, 24, setting_row_y(0), rw - 48, SETTING_ROW_H)) {
+                            g_wifi_on = !g_wifi_on;
+                            g_dirty = 1;
+                        }
+                        /* Row 1: Bluetooth */
+                        if (point_in(nx, ny, 24, setting_row_y(1), rw - 48, SETTING_ROW_H)) {
+                            g_bt_on = !g_bt_on;
+                            g_dirty = 1;
+                        }
+                        break;
                     }
-                    /* Row 4: Large Font */
-                    if (point_in(nx, ny, 24, setting_row_y(4), rw - 48, SETTING_ROW_H)) {
-                        g_font_scale = (g_font_scale > 1) ? 1 : 2;
-                        g_dirty = 1;
+                    case 2: { /* Audio tab */
+                        /* Row 0: Volume slider */
+                        if (point_in(nx, ny, bar_x, setting_row_y(0), bar_w, SETTING_ROW_H)) {
+                            int pct = (nx - bar_x) * 100 / bar_w;
+                            if (pct < 0) pct = 0;
+                            if (pct > 100) pct = 100;
+                            g_volume = pct;
+                            g_dirty = 1;
+                        }
+                        break;
                     }
-                    /* Row 5: Dark Theme */
-                    if (point_in(nx, ny, 24, setting_row_y(5), rw - 48, SETTING_ROW_H)) {
-                        g_dark_theme = !g_dark_theme;
-                        bg_valid = 0;
-                        g_dirty = 1;
-                    }
-                    /* Row 6: Brightness slider */
-                    if (point_in(nx, ny, bar_x, setting_row_y(6), bar_w, SETTING_ROW_H)) {
-                        int pct = (nx - bar_x) * 100 / bar_w;
-                        if (pct < 0) pct = 0;
-                        if (pct > 100) pct = 100;
-                        g_brightness = pct;
-                        g_dirty = 1;
-                    }
-                    /* Row 7: Frame Rate */
-                    if (point_in(nx, ny, 24, setting_row_y(7), rw - 48, SETTING_ROW_H)) {
-                        g_frame_rate = (g_frame_rate == 60) ? 30 : 60;
-                        g_dirty = 1;
-                    }
-                    /* Row 9: Wi-Fi */
-                    if (point_in(nx, ny, 24, setting_row_y(9), rw - 48, SETTING_ROW_H)) {
-                        g_wifi_on = !g_wifi_on;
-                        g_dirty = 1;
-                    }
-                    /* Row 10: Bluetooth */
-                    if (point_in(nx, ny, 24, setting_row_y(10), rw - 48, SETTING_ROW_H)) {
-                        g_bt_on = !g_bt_on;
-                        g_dirty = 1;
-                    }
-                    /* Row 12: Volume slider */
-                    if (point_in(nx, ny, bar_x, setting_row_y(12), bar_w, SETTING_ROW_H)) {
-                        int pct = (nx - bar_x) * 100 / bar_w;
-                        if (pct < 0) pct = 0;
-                        if (pct > 100) pct = 100;
-                        g_volume = pct;
-                        g_dirty = 1;
+                    case 3: /* About tab — no interactive rows */
+                        break;
                     }
                 }
             }
