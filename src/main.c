@@ -2032,8 +2032,6 @@ int main(void) {
     if (zf_write_buffer(&g_buf, compositor_fb, fb_size) < 0) return 1;
     if (zf_present(&g_buf) != 0) return 1;
 
-    zf_suppress_dbg();
-
     for (;;) {
         process_mouse();
         process_keys();

@@ -75,7 +75,6 @@ int main(void)
     zf_make_cube_verts(verts, 0xFFFF8844);
     int ntri = zf_make_cube_indices(indices);
 
-    zf_suppress_dbg();
     zf_present(&g_buf);
 
     int frames = 0;
