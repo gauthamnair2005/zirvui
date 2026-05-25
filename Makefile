@@ -39,8 +39,8 @@ LIBC_OBJS := $(patsubst ../libs/zirvlibc/src/%.c,$(LIBC_BUILD)/%.o,$(LIBC_SRCS))
 ZIRVFLUX_LIB := ../zirvflux/libzirvflux.a
 ZIRVTK_LIB    := ../zirvtk/target/release/libzirvtk.a
 
-SRCS := src/main.c src/crt0.asm src/stubs.c
-OBJS := src/main.o src/crt0.o src/stubs.o
+SRCS := src/main.c src/demoapp.c src/crt0.asm src/stubs.c
+OBJS := src/main.o src/demoapp.o src/crt0.o src/stubs.o
 
 TARGET := zirvui.elf
 

@@ -29,9 +29,35 @@ typedef zf_mouse_event_t mouse_event_t;
 #define METRO_TILE_SNAKE 0xFF27AE60
 #define METRO_TILE_PONG  0xFF2980B9
 #define METRO_TILE_TETRS 0xFFC0392B
+#define METRO_TILE_DEMO 0xFF663399
 #define METRO_BACK_BTN   0xFF444466
 #define METRO_TILE_HOVER 0x22FFFFFF
 #define METRO_DIALOG_BG  0xFF1A1A3E
+
+/* ── Wallpaper gradient presets (6 schemes) ──────────────────────────── */
+#define NUM_WALLPAPERS 6
+static const char *wallpaper_names[NUM_WALLPAPERS] = {
+    "Deep Blue", "Twilight", "Forest", "Sunset", "Ocean", "Midnight",
+};
+/* Each preset: top_r,top_g,top_b, mid_r,mid_g,mid_b, bot_r,bot_g,bot_b */
+static const uint8_t wallpaper_colors[NUM_WALLPAPERS][9] = {
+    {0x1A,0x1A,0x2E, 0x16,0x21,0x3E, 0x12,0x1A,0x2A}, /* Deep Blue */
+    {0x2E,0x1A,0x3E, 0x21,0x16,0x2E, 0x1A,0x12,0x1A}, /* Twilight */
+    {0x1A,0x2E,0x1A, 0x16,0x21,0x16, 0x0A,0x1A,0x0A}, /* Forest */
+    {0x3E,0x1A,0x16, 0x2E,0x1A,0x12, 0x1A,0x12,0x0A}, /* Sunset */
+    {0x16,0x2E,0x3E, 0x12,0x21,0x2E, 0x0A,0x1A,0x1A}, /* Ocean */
+    {0x0F,0x0F,0x1A, 0x0A,0x0A,0x14, 0x05,0x05,0x0A}, /* Midnight */
+};
+
+/* ── Accent color presets (8 colors) ─────────────────────────────────── */
+#define NUM_ACCENTS 8
+static const uint32_t accent_colors[NUM_ACCENTS] = {
+    0xFF00B7C3, 0xFF0078D4, 0xFFE74C3C, 0xFF2ECC71,
+    0xFFF39C12, 0xFF9B59B6, 0xFF1ABC9C, 0xFFE91E63,
+};
+static const char *accent_names[NUM_ACCENTS] = {
+    "Teal", "Blue", "Red", "Green", "Orange", "Purple", "Mint", "Pink",
+};
 
 /* ── Layout constants ─────────────────────────────────────────────────── */
 #define TILE_SIZE    120
@@ -40,7 +66,6 @@ typedef zf_mouse_event_t mouse_event_t;
 #define TILE_COLS    6
 #define TASKBAR_H    40
 #define TITLEBAR_H   36
-#define ANIM_FRAMES  10
 
 /* ── App icons ─────────────────────────────────────────────────────────── */
 enum {
@@ -52,6 +77,7 @@ enum {
     ICON_SNAKE,
     ICON_PONG,
     ICON_TETRIS,
+    ICON_DEMO,
     NUM_ICONS,
 };
 
@@ -65,6 +91,7 @@ enum {
     APP_SNAKE,
     APP_PONG,
     APP_TETRIS,
+    APP_DEMO,
     NUM_APPS,
 };
 
@@ -83,6 +110,7 @@ static const AppDef g_apps[NUM_APPS] = {
     {"Snake",      METRO_TILE_SNAKE, ICON_SNAKE},
     {"Pong",       METRO_TILE_PONG,  ICON_PONG},
     {"Tetris",     METRO_TILE_TETRS, ICON_TETRIS},
+    {"Demo",       METRO_TILE_DEMO,  ICON_DEMO},
 };
 
 /* ── Framebuffer state ────────────────────────────────────────────────── */
@@ -108,6 +136,9 @@ static int g_bt_on = 0;
 static int g_volume = 75;       /* 0-100 */
 static int g_exit_hover = 0;
 static int g_power_hover = 0;
+static int g_wallpaper_style = 0; /* 0-5 */
+static int g_accent_color = 0;    /* 0-7 */
+static int g_anim_frames = 10;    /* replaces g_anim_frames */
 
 /* ── Shutdown confirmation / animation state ──────────────────────────── */
 static int g_confirm_shutdown = 0;   /* 0=off, 1=confirm dialog, 2=animating */
@@ -407,6 +438,10 @@ static int smoothstep(int t) {
     return (t * t * (768 - (t * 2))) / (256 * 256);
 }
 
+static uint32_t get_accent_color(void) {
+    return accent_colors[g_accent_color];
+}
+
 /* ── Drawing helpers ──────────────────────────────────────────────────── */
 static uint32_t blend(uint32_t fg, uint32_t bg, uint8_t alpha) {
     return ztk_fb_blend(fg, bg, alpha);
@@ -418,103 +453,7 @@ static void fill_rect(uint32_t *fb, uint32_t fb_w, uint32_t fb_h,
 }
 
 /* ── 8x13 bitmap font ─────────────────────────────────────────────────── */
-static const uint8_t font_8x13[95][FONT_H] = {
-    {0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00},
-    {0x00,0x18,0x18,0x18,0x18,0x18,0x18,0x18,0x00,0x18,0x18,0x00,0x00},
-    {0x00,0x6C,0x6C,0x6C,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00},
-    {0x00,0x00,0x24,0x24,0x7E,0x24,0x24,0x7E,0x24,0x24,0x00,0x00,0x00},
-    {0x00,0x08,0x3E,0x49,0x48,0x3E,0x09,0x49,0x3E,0x08,0x00,0x00,0x00},
-    {0x00,0x61,0x92,0x64,0x08,0x10,0x26,0x49,0x86,0x00,0x00,0x00,0x00},
-    {0x00,0x18,0x24,0x24,0x18,0x28,0x44,0x44,0x38,0x00,0x00,0x00,0x00},
-    {0x00,0x18,0x18,0x18,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00},
-    {0x00,0x04,0x08,0x10,0x10,0x10,0x10,0x10,0x08,0x04,0x00,0x00,0x00},
-    {0x00,0x20,0x10,0x08,0x08,0x08,0x08,0x08,0x10,0x20,0x00,0x00,0x00},
-    {0x00,0x00,0x00,0x08,0x49,0x2A,0x1C,0x2A,0x49,0x08,0x00,0x00,0x00},
-    {0x00,0x00,0x00,0x08,0x08,0x08,0x7F,0x08,0x08,0x08,0x00,0x00,0x00},
-    {0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x18,0x18,0x08,0x10,0x00},
-    {0x00,0x00,0x00,0x00,0x00,0x00,0x7E,0x00,0x00,0x00,0x00,0x00,0x00},
-    {0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x18,0x18,0x00,0x00,0x00},
-    {0x00,0x02,0x04,0x04,0x08,0x08,0x10,0x10,0x20,0x20,0x00,0x00,0x00},
-    {0x00,0x3C,0x42,0x46,0x4A,0x52,0x62,0x42,0x3C,0x00,0x00,0x00,0x00},
-    {0x00,0x08,0x18,0x28,0x08,0x08,0x08,0x08,0x3E,0x00,0x00,0x00,0x00},
-    {0x00,0x3C,0x42,0x02,0x04,0x08,0x10,0x20,0x7E,0x00,0x00,0x00,0x00},
-    {0x00,0x3C,0x42,0x02,0x1C,0x02,0x02,0x42,0x3C,0x00,0x00,0x00,0x00},
-    {0x00,0x04,0x0C,0x14,0x24,0x44,0x7E,0x04,0x04,0x00,0x00,0x00,0x00},
-    {0x00,0x7E,0x40,0x40,0x7C,0x02,0x02,0x42,0x3C,0x00,0x00,0x00,0x00},
-    {0x00,0x1C,0x20,0x40,0x7C,0x42,0x42,0x42,0x3C,0x00,0x00,0x00,0x00},
-    {0x00,0x7E,0x02,0x04,0x08,0x10,0x10,0x10,0x10,0x00,0x00,0x00,0x00},
-    {0x00,0x3C,0x42,0x42,0x3C,0x42,0x42,0x42,0x3C,0x00,0x00,0x00,0x00},
-    {0x00,0x3C,0x42,0x42,0x42,0x3E,0x02,0x04,0x38,0x00,0x00,0x00,0x00},
-    {0x00,0x00,0x00,0x18,0x18,0x00,0x00,0x00,0x18,0x18,0x00,0x00,0x00},
-    {0x00,0x00,0x00,0x18,0x18,0x00,0x00,0x00,0x18,0x18,0x08,0x10,0x00},
-    {0x00,0x00,0x04,0x08,0x10,0x20,0x10,0x08,0x04,0x00,0x00,0x00,0x00},
-    {0x00,0x00,0x00,0x00,0x7E,0x00,0x00,0x7E,0x00,0x00,0x00,0x00,0x00},
-    {0x00,0x00,0x20,0x10,0x08,0x04,0x08,0x10,0x20,0x00,0x00,0x00,0x00},
-    {0x00,0x3C,0x42,0x02,0x04,0x08,0x08,0x00,0x08,0x08,0x00,0x00,0x00},
-    {0x00,0x3C,0x42,0x42,0x4E,0x52,0x4E,0x40,0x3C,0x00,0x00,0x00,0x00},
-    {0x00,0x18,0x24,0x42,0x42,0x7E,0x42,0x42,0x42,0x00,0x00,0x00,0x00},
-    {0x00,0x7C,0x42,0x42,0x7C,0x42,0x42,0x42,0x7C,0x00,0x00,0x00,0x00},
-    {0x00,0x3C,0x42,0x40,0x40,0x40,0x40,0x42,0x3C,0x00,0x00,0x00,0x00},
-    {0x00,0x78,0x44,0x42,0x42,0x42,0x42,0x44,0x78,0x00,0x00,0x00,0x00},
-    {0x00,0x7E,0x40,0x40,0x7C,0x40,0x40,0x40,0x7E,0x00,0x00,0x00,0x00},
-    {0x00,0x7E,0x40,0x40,0x7C,0x40,0x40,0x40,0x40,0x00,0x00,0x00,0x00},
-    {0x00,0x3C,0x42,0x40,0x40,0x4E,0x42,0x42,0x3C,0x00,0x00,0x00,0x00},
-    {0x00,0x42,0x42,0x42,0x7E,0x42,0x42,0x42,0x42,0x00,0x00,0x00,0x00},
-    {0x00,0x3E,0x08,0x08,0x08,0x08,0x08,0x08,0x3E,0x00,0x00,0x00,0x00},
-    {0x00,0x1F,0x04,0x04,0x04,0x04,0x04,0x44,0x38,0x00,0x00,0x00,0x00},
-    {0x00,0x42,0x44,0x48,0x50,0x70,0x48,0x44,0x42,0x00,0x00,0x00,0x00},
-    {0x00,0x40,0x40,0x40,0x40,0x40,0x40,0x40,0x7E,0x00,0x00,0x00,0x00},
-    {0x00,0x42,0x66,0x5A,0x5A,0x42,0x42,0x42,0x42,0x00,0x00,0x00,0x00},
-    {0x00,0x42,0x62,0x52,0x4A,0x46,0x42,0x42,0x42,0x00,0x00,0x00,0x00},
-    {0x00,0x3C,0x42,0x42,0x42,0x42,0x42,0x42,0x3C,0x00,0x00,0x00,0x00},
-    {0x00,0x7C,0x42,0x42,0x42,0x7C,0x40,0x40,0x40,0x00,0x00,0x00,0x00},
-    {0x00,0x3C,0x42,0x42,0x42,0x42,0x4A,0x44,0x3A,0x00,0x00,0x00,0x00},
-    {0x00,0x7C,0x42,0x42,0x7C,0x48,0x44,0x42,0x42,0x00,0x00,0x00,0x00},
-    {0x00,0x3C,0x42,0x40,0x3C,0x02,0x02,0x42,0x3C,0x00,0x00,0x00,0x00},
-    {0x00,0x7F,0x08,0x08,0x08,0x08,0x08,0x08,0x08,0x00,0x00,0x00,0x00},
-    {0x00,0x42,0x42,0x42,0x42,0x42,0x42,0x42,0x3C,0x00,0x00,0x00,0x00},
-    {0x00,0x42,0x42,0x42,0x42,0x42,0x42,0x24,0x18,0x00,0x00,0x00,0x00},
-    {0x00,0x42,0x42,0x42,0x42,0x5A,0x5A,0x66,0x42,0x00,0x00,0x00,0x00},
-    {0x00,0x42,0x42,0x24,0x18,0x18,0x24,0x42,0x42,0x00,0x00,0x00,0x00},
-    {0x00,0x41,0x22,0x14,0x08,0x08,0x08,0x08,0x08,0x00,0x00,0x00,0x00},
-    {0x00,0x7E,0x02,0x04,0x08,0x10,0x20,0x40,0x7E,0x00,0x00,0x00,0x00},
-    {0x00,0x1E,0x10,0x10,0x10,0x10,0x10,0x10,0x1E,0x00,0x00,0x00,0x00},
-    {0x00,0x20,0x10,0x10,0x08,0x08,0x04,0x04,0x02,0x02,0x00,0x00,0x00},
-    {0x00,0x78,0x08,0x08,0x08,0x08,0x08,0x08,0x78,0x00,0x00,0x00,0x00},
-    {0x00,0x08,0x14,0x22,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00},
-    {0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x7F,0x00,0x00},
-    {0x00,0x10,0x08,0x04,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00},
-    {0x00,0x00,0x00,0x3C,0x02,0x3E,0x42,0x42,0x3E,0x00,0x00,0x00,0x00},
-    {0x00,0x40,0x40,0x5C,0x62,0x42,0x42,0x62,0x5C,0x00,0x00,0x00,0x00},
-    {0x00,0x00,0x00,0x3C,0x42,0x40,0x40,0x42,0x3C,0x00,0x00,0x00,0x00},
-    {0x00,0x02,0x02,0x3E,0x42,0x42,0x42,0x46,0x3A,0x00,0x00,0x00,0x00},
-    {0x00,0x00,0x00,0x3C,0x42,0x7E,0x40,0x42,0x3C,0x00,0x00,0x00,0x00},
-    {0x00,0x0C,0x12,0x10,0x7C,0x10,0x10,0x10,0x10,0x00,0x00,0x00,0x00},
-    {0x00,0x00,0x00,0x3E,0x42,0x42,0x46,0x3A,0x02,0x42,0x3C,0x00,0x00},
-    {0x00,0x40,0x40,0x5C,0x62,0x42,0x42,0x42,0x42,0x00,0x00,0x00,0x00},
-    {0x00,0x08,0x00,0x38,0x08,0x08,0x08,0x08,0x3E,0x00,0x00,0x00,0x00},
-    {0x00,0x04,0x00,0x1C,0x04,0x04,0x04,0x04,0x44,0x44,0x38,0x00,0x00},
-    {0x00,0x40,0x40,0x44,0x48,0x50,0x70,0x48,0x44,0x00,0x00,0x00,0x00},
-    {0x00,0x38,0x08,0x08,0x08,0x08,0x08,0x08,0x3E,0x00,0x00,0x00,0x00},
-    {0x00,0x00,0x00,0x76,0x49,0x49,0x49,0x49,0x49,0x00,0x00,0x00,0x00},
-    {0x00,0x00,0x00,0x5C,0x62,0x42,0x42,0x42,0x42,0x00,0x00,0x00,0x00},
-    {0x00,0x00,0x00,0x3C,0x42,0x42,0x42,0x42,0x3C,0x00,0x00,0x00,0x00},
-    {0x00,0x00,0x00,0x5C,0x62,0x42,0x62,0x5C,0x40,0x40,0x40,0x00,0x00},
-    {0x00,0x00,0x00,0x3A,0x46,0x42,0x42,0x46,0x3A,0x02,0x02,0x00,0x00},
-    {0x00,0x00,0x00,0x5C,0x62,0x40,0x40,0x40,0x40,0x00,0x00,0x00,0x00},
-    {0x00,0x00,0x00,0x3E,0x40,0x3C,0x02,0x42,0x3C,0x00,0x00,0x00,0x00},
-    {0x00,0x10,0x10,0x7E,0x10,0x10,0x10,0x12,0x0C,0x00,0x00,0x00,0x00},
-    {0x00,0x00,0x00,0x42,0x42,0x42,0x42,0x46,0x3A,0x00,0x00,0x00,0x00},
-    {0x00,0x00,0x00,0x42,0x42,0x42,0x24,0x24,0x18,0x00,0x00,0x00,0x00},
-    {0x00,0x00,0x00,0x41,0x49,0x49,0x49,0x49,0x36,0x00,0x00,0x00,0x00},
-    {0x00,0x00,0x00,0x42,0x24,0x18,0x18,0x24,0x42,0x00,0x00,0x00,0x00},
-    {0x00,0x00,0x00,0x42,0x42,0x42,0x46,0x3A,0x02,0x42,0x3C,0x00,0x00},
-    {0x00,0x00,0x00,0x7E,0x04,0x08,0x10,0x20,0x7E,0x00,0x00,0x00,0x00},
-    {0x00,0x06,0x08,0x08,0x08,0x30,0x08,0x08,0x08,0x06,0x00,0x00,0x00},
-    {0x00,0x08,0x08,0x08,0x08,0x00,0x08,0x08,0x08,0x08,0x00,0x00,0x00},
-    {0x00,0x60,0x10,0x10,0x10,0x0C,0x10,0x10,0x10,0x60,0x00,0x00,0x00},
-    {0x00,0x00,0x00,0x00,0x00,0x20,0x54,0x08,0x00,0x00,0x00,0x00,0x00},
-};
+#include "font_8x13.h"
 
 static const uint8_t *font_get(char c) {
     if (c >= 32 && c <= 126) return font_8x13[c - 32];
@@ -597,6 +536,8 @@ static int point_in(int px, int py, int x, int y, int w, int h) {
 /* ── Forward declarations ─────────────────────────────────────────────── */
 static void draw_line(uint32_t *fb, uint32_t fb_w, uint32_t fb_h,
                       int x0, int y0, int x1, int y1, uint32_t color);
+extern void draw_demoapp(uint32_t *fb, uint32_t w, uint32_t h);
+extern int demo_hit_test(int mx, int my, int w);
 
 /* ── Procedural app icons ─────────────────────────────────────────────── */
 static void draw_icon(uint32_t *fb, uint32_t fb_w, uint32_t fb_h,
@@ -691,6 +632,21 @@ static void draw_icon(uint32_t *fb, uint32_t fb_w, uint32_t fb_h,
             fill_rect(fb, fb_w, fb_h, cx + s, cy + s, s * 2, s, color);
             break;
         }
+        case ICON_DEMO: {
+            int r = size / 3;
+            for (int dy = -r; dy <= r; dy++) {
+                for (int dx = -r; dx <= r; dx++) {
+                    if (dx * dx + dy * dy <= r * r) {
+                        int px = cx + dx, py = cy + dy;
+                        if (px >= 0 && py >= 0 && px < (int)fb_w && py < (int)fb_h)
+                            fb[(uint32_t)py * fb_w + (uint32_t)px] = color;
+                    }
+                }
+            }
+            draw_line(fb, fb_w, fb_h, cx - r/2, cy - r/2, cx + r/2, cy + r/2, 0xFF1A1A2E);
+            draw_line(fb, fb_w, fb_h, cx + r/2, cy - r/2, cx - r/2, cy + r/2, 0xFF1A1A2E);
+            break;
+        }
         default:
             break;
     }
@@ -707,21 +663,25 @@ static void render_bg(uint32_t *fb, uint32_t w, uint32_t h) {
         memcpy(fb, bg_cache, w * h * 4);
         return;
     }
+    int wp = g_wallpaper_style;
+    if (wp < 0) wp = 0;
+    if (wp >= NUM_WALLPAPERS) wp = 0;
+    const uint8_t *wc = wallpaper_colors[wp];
     for (uint32_t y = 0; y < h; y++) {
         if (g_dark_theme) {
             uint32_t top_h = h * 2 / 3;
             uint32_t c;
             if (y < top_h) {
-                uint8_t r = (uint8_t)(0x1A + ((0x16 - 0x1A) * y) / top_h);
-                uint8_t g = (uint8_t)(0x1A + ((0x21 - 0x1A) * y) / top_h);
-                uint8_t b = (uint8_t)(0x2E + ((0x3E - 0x2E) * y) / top_h);
+                uint8_t r = (uint8_t)(wc[0] + ((int)(wc[3] - wc[0]) * (int)y) / (int)top_h);
+                uint8_t g = (uint8_t)(wc[1] + ((int)(wc[4] - wc[1]) * (int)y) / (int)top_h);
+                uint8_t b = (uint8_t)(wc[2] + ((int)(wc[5] - wc[2]) * (int)y) / (int)top_h);
                 c = 0xFF000000u | ((uint32_t)r << 16) | ((uint32_t)g << 8) | b;
             } else {
                 uint32_t dy = y - top_h;
                 uint32_t bh = h - top_h;
-                uint8_t r = (uint8_t)(0x16 + ((0x12 - 0x16) * dy) / bh);
-                uint8_t g = (uint8_t)(0x21 + ((0x1A - 0x21) * dy) / bh);
-                uint8_t b = (uint8_t)(0x3E + ((0x2A - 0x3E) * dy) / bh);
+                uint8_t r = (uint8_t)(wc[3] + ((int)(wc[6] - wc[3]) * (int)dy) / (int)bh);
+                uint8_t g = (uint8_t)(wc[4] + ((int)(wc[7] - wc[4]) * (int)dy) / (int)bh);
+                uint8_t b = (uint8_t)(wc[5] + ((int)(wc[8] - wc[5]) * (int)dy) / (int)bh);
                 c = 0xFF000000u | ((uint32_t)r << 16) | ((uint32_t)g << 8) | b;
             }
             for (uint32_t x = 0; x < w; x++)
@@ -768,7 +728,7 @@ static void draw_start_screen(uint32_t *fb, uint32_t w, uint32_t h) {
         if (g_anim.active && !g_anim.opening && g_anim.app_idx == i) {
             int tw = (int)w, th = (int)h;
             int tx = 0, ty = 0;
-            int progress = (g_anim.frame * 256) / ANIM_FRAMES;
+            int progress = (g_anim.frame * 256) / g_anim_frames;
             int eased = smoothstep(256 - progress);
             int cx = g_anim.tile_x + (tx - g_anim.tile_x) * eased / 256;
             int cy = g_anim.tile_y + (ty - g_anim.tile_y) * eased / 256;
@@ -936,7 +896,7 @@ static void draw_clock_app(uint32_t *fb, uint32_t w, uint32_t h) {
         time_str[8] = '\0';
         int saved_scale = g_font_scale;
         g_font_scale = 4;
-        draw_text(fb, w, h, 24, TITLEBAR_H + 60, time_str, METRO_ACCENT);
+        draw_text(fb, w, h, 24, TITLEBAR_H + 60, time_str, get_accent_color());
         g_font_scale = saved_scale;
         char date_str[32];
         snprintf(date_str, 32, "%04d-%02d-%02d", dt.year, dt.month, dt.day);
@@ -967,31 +927,66 @@ static void draw_settings(uint32_t *fb, uint32_t w, uint32_t h) {
     uint32_t bg = g_dark_theme ? 0xFF1A1A2E : 0xFFE8E8F0;
     uint32_t text_c   = g_dark_theme ? METRO_TEXT : 0xFF222222;
     uint32_t dim_c    = g_dark_theme ? METRO_TEXT_DIM : 0xFF666666;
-    uint32_t accent_c = g_dark_theme ? METRO_ACCENT : 0xFF0078D4;
+    uint32_t accent_c = get_accent_color();
     uint32_t green_c  = 0xFF44CC44;
     uint32_t bar_bg   = g_dark_theme ? 0xFF333355 : 0xFFCCCCDD;
 
     fill_rect(fb, w, h, 0, TITLEBAR_H, (int)w, (int)h - TITLEBAR_H, bg);
 
-    /* ── DISPLAY section ────────────────────────────────────────────── */
-    draw_text(fb, w, h, 24, TITLEBAR_H + 8, "DISPLAY", accent_c);
+    /* ── APPEARANCE section ─────────────────────────────────────────── */
+    draw_text(fb, w, h, 24, TITLEBAR_H + 8, "APPEARANCE", accent_c);
 
-    int r = 0;
-    /* Row 0: Font Size */
-    draw_toggle_row(fb, w, r, "Font Size",
-                    g_font_scale > 1 ? "Large" : "Small", accent_c);
+    int r = 0, bar_x = 160, bar_w = (int)w - 200;
+    int slid_y;
 
-    /* Row 1: Dark Theme */
+    /* Row 0: Wallpaper */
+    draw_toggle_row(fb, w, r, "Wallpaper",
+                    wallpaper_names[g_wallpaper_style], accent_c);
+
+    /* Row 1: Accent Color — draw swatch and name */
     r = 1;
+    int ay = setting_row_y(r);
+    fill_rect(fb, w, g_info.height, 24, ay, (int)w - 48, SETTING_ROW_H, 0xFF222244);
+    draw_text(fb, w, g_info.height, 36, ay + (SETTING_ROW_H - FONT_H) / 2, "Accent Color", text_c);
+    int swatch_x = (int)w - 140;
+    int swatch_y = ay + (SETTING_ROW_H - 14) / 2;
+    fill_rect(fb, w, g_info.height, swatch_x, swatch_y, 14, 14, accent_colors[g_accent_color]);
+    fill_rect(fb, w, g_info.height, swatch_x, swatch_y, 14, 1, 0x88FFFFFF);
+    fill_rect(fb, w, g_info.height, swatch_x, swatch_y, 1, 14, 0x88FFFFFF);
+    fill_rect(fb, w, g_info.height, swatch_x + 13, swatch_y, 1, 14, 0x44000000);
+    fill_rect(fb, w, g_info.height, swatch_x, swatch_y + 13, 14, 1, 0x44000000);
+    draw_text(fb, w, g_info.height, swatch_x + 20, ay + (SETTING_ROW_H - FONT_H) / 2,
+              accent_names[g_accent_color], accent_c);
+
+    /* Row 2: Animation Speed */
+    r = 2;
+    {
+        const char *speed_name;
+        if (g_anim_frames <= 5) speed_name = "Fast";
+        else if (g_anim_frames >= 20) speed_name = "Smooth";
+        else speed_name = "Medium";
+        draw_toggle_row(fb, w, r, "Animation", speed_name, accent_c);
+    }
+
+    /* ── DISPLAY section ────────────────────────────────────────────── */
+    r = 3;
+    draw_text(fb, w, h, 24, setting_row_y(r) - 6, "DISPLAY", accent_c);
+
+    /* Row 4: Large Font */
+    r = 4;
+    draw_toggle_row(fb, w, r, "Large Font",
+                    g_font_scale > 1 ? "On" : "Off", accent_c);
+
+    /* Row 5: Dark Theme */
+    r = 5;
     draw_toggle_row(fb, w, r, "Dark Theme",
                     g_dark_theme ? "On" : "Off", g_dark_theme ? green_c : dim_c);
 
-    /* Row 2: Brightness slider */
-    r = 2;
-    int slid_y = setting_row_y(r) + (SETTING_ROW_H - 16) / 2;
+    /* Row 6: Brightness slider */
+    r = 6;
+    slid_y = setting_row_y(r) + (SETTING_ROW_H - 16) / 2;
     draw_text(fb, w, h, 36, setting_row_y(r) + (SETTING_ROW_H - FONT_H) / 2,
               "Brightness", text_c);
-    int bar_x = 160, bar_w = (int)w - 200;
     fill_rect(fb, w, h, bar_x, slid_y, bar_w, 16, bar_bg);
     int fill = bar_w * g_brightness / 100;
     if (fill > 0) fill_rect(fb, w, h, bar_x, slid_y, fill, 16, accent_c);
@@ -999,31 +994,31 @@ static void draw_settings(uint32_t *fb, uint32_t w, uint32_t h) {
     snprintf(bri, sizeof(bri), "%d%%", g_brightness);
     draw_text(fb, w, h, bar_x + fill - 16, slid_y + (16 - FONT_H) / 2, bri, METRO_TEXT);
 
-    /* Row 3: Frame Rate */
-    r = 3;
+    /* Row 7: Frame Rate */
+    r = 7;
     draw_toggle_row(fb, w, r, "Frame Rate",
                     g_frame_rate == 60 ? "60 FPS" : "30 FPS", accent_c);
 
     /* ── NETWORK section ────────────────────────────────────────────── */
-    r = 4;
+    r = 8;
     draw_text(fb, w, h, 24, setting_row_y(r) - 6, "NETWORK", accent_c);
 
-    /* Row 5: Wi-Fi */
-    r = 5;
+    /* Row 9: Wi-Fi */
+    r = 9;
     draw_toggle_row(fb, w, r, "Wi-Fi",
                     g_wifi_on ? "On" : "Off", g_wifi_on ? green_c : dim_c);
 
-    /* Row 6: Bluetooth */
-    r = 6;
+    /* Row 10: Bluetooth */
+    r = 10;
     draw_toggle_row(fb, w, r, "Bluetooth",
                     g_bt_on ? "On" : "Off", g_bt_on ? green_c : dim_c);
 
     /* ── AUDIO section ──────────────────────────────────────────────── */
-    r = 7;
+    r = 11;
     draw_text(fb, w, h, 24, setting_row_y(r) - 6, "AUDIO", accent_c);
 
-    /* Row 8: Volume slider */
-    r = 8;
+    /* Row 12: Volume slider */
+    r = 12;
     slid_y = setting_row_y(r) + (SETTING_ROW_H - 16) / 2;
     draw_text(fb, w, h, 36, setting_row_y(r) + (SETTING_ROW_H - FONT_H) / 2,
               "Volume", text_c);
@@ -1035,12 +1030,12 @@ static void draw_settings(uint32_t *fb, uint32_t w, uint32_t h) {
     draw_text(fb, w, h, bar_x + fill - 16, slid_y + (16 - FONT_H) / 2, vol, METRO_TEXT);
 
     /* ── ABOUT section ──────────────────────────────────────────────── */
-    r = 9;
+    r = 13;
     draw_text(fb, w, h, 24, setting_row_y(r) - 6, "ABOUT", accent_c);
-    r = 10;
+    r = 14;
     draw_text(fb, w, h, 36, setting_row_y(r) + (SETTING_ROW_H - FONT_H) / 2,
               "Zirvium OS v0.1.0", dim_c);
-    r = 11;
+    r = 15;
     draw_text(fb, w, h, 36, setting_row_y(r) + (SETTING_ROW_H - FONT_H) / 2,
               "DisplayJet MAEM compositor", dim_c);
 }
@@ -1262,7 +1257,7 @@ static void draw_tetris(uint32_t *fb, uint32_t w, uint32_t h) {
 typedef void (*app_draw_fn)(uint32_t *, uint32_t, uint32_t);
 static app_draw_fn g_app_draw[NUM_APPS] = {
     draw_terminal, draw_calculator, draw_settings,
-    draw_clock_app, draw_editor, draw_snake, draw_pong, draw_tetris,
+    draw_clock_app, draw_editor, draw_snake, draw_pong, draw_tetris, draw_demoapp,
 };
 
 /* ── Title bar rendering (Metro thin bar at top) ──────────────────────────── */
@@ -1284,7 +1279,7 @@ static void draw_taskbar(uint32_t *fb, uint32_t w, uint32_t h) {
     fill_rect(fb, w, h, 0, tb_y, (int)w, TASKBAR_H, METRO_TASKBAR);
     fill_rect(fb, w, h, 0, tb_y, (int)w, 1, 0xFF333355);
     draw_clock_text(fb, w, h, (int)w - 70, tb_y + (TASKBAR_H - FONT_H) / 2, METRO_TEXT);
-    draw_text(fb, w, h, 10, tb_y + (TASKBAR_H - FONT_H) / 2, "Zirvium", METRO_ACCENT);
+    draw_text(fb, w, h, 10, tb_y + (TASKBAR_H - FONT_H) / 2, "Zirvium", get_accent_color());
 
     int btn_y = tb_y + 4;
     int btn_h = TASKBAR_H - 8;
@@ -1449,7 +1444,7 @@ static void render_frame(void) {
     if (g_anim.active) {
         if (g_anim.opening) {
             draw_start_screen(fb32, w, h);
-            int progress = (g_anim.frame * 256) / ANIM_FRAMES;
+            int progress = (g_anim.frame * 256) / g_anim_frames;
             int eased = smoothstep(progress);
             int cw = g_anim.tile_w + ((int)w - g_anim.tile_w) * eased / 256;
             int ch = g_anim.tile_h + ((int)h - g_anim.tile_h) * eased / 256;
@@ -1467,7 +1462,7 @@ static void render_frame(void) {
             draw_taskbar(fb32, w, h);
         } else {
             render_bg(fb32, w, h);
-            int progress = (g_anim.frame * 256) / ANIM_FRAMES;
+            int progress = (g_anim.frame * 256) / g_anim_frames;
             int eased = smoothstep(256 - progress);
             int cw = g_anim.tile_w + ((int)w - g_anim.tile_w) * eased / 256;
             int ch = g_anim.tile_h + ((int)h - g_anim.tile_h) * eased / 256;
@@ -1569,7 +1564,7 @@ static void process_mouse(void) {
         if (g_anim.active) {
             if (left_down) {
                 g_anim.active = 0;
-                g_anim.frame = ANIM_FRAMES;
+                g_anim.frame = g_anim_frames;
                 g_dirty = 1;
             }
             continue;
@@ -1613,6 +1608,10 @@ static void process_mouse(void) {
             if (g_active_app == APP_CALCULATOR) {
                 calc_hit_test(nx, ny);
             }
+            if (left_down && g_active_app == APP_DEMO) {
+                if (demo_hit_test(nx, ny, (int)ww))
+                    g_dirty = 1;
+            }
             if (left_down) {
                 if (g_back_hover) {
                     if (g_active_app >= 0) {
@@ -1636,42 +1635,60 @@ static void process_mouse(void) {
                     int rw = (int)ww;
                     int bar_x = 160, bar_w = rw - 200;
 
-                    /* Row 0: Font Size */
+                    /* Row 0: Wallpaper (cycle) */
                     if (point_in(nx, ny, 24, setting_row_y(0), rw - 48, SETTING_ROW_H)) {
+                        g_wallpaper_style = (g_wallpaper_style + 1) % NUM_WALLPAPERS;
+                        bg_valid = 0;
+                        g_dirty = 1;
+                    }
+                    /* Row 1: Accent Color (cycle) */
+                    if (point_in(nx, ny, 24, setting_row_y(1), rw - 48, SETTING_ROW_H)) {
+                        g_accent_color = (g_accent_color + 1) % NUM_ACCENTS;
+                        g_dirty = 1;
+                    }
+                    /* Row 2: Animation Speed (cycle Fast/Medium/Smooth) */
+                    if (point_in(nx, ny, 24, setting_row_y(2), rw - 48, SETTING_ROW_H)) {
+                        if (g_anim_frames <= 5) g_anim_frames = 10;
+                        else if (g_anim_frames >= 20) g_anim_frames = 5;
+                        else g_anim_frames = 20;
+                        g_dirty = 1;
+                    }
+                    /* Row 4: Large Font */
+                    if (point_in(nx, ny, 24, setting_row_y(4), rw - 48, SETTING_ROW_H)) {
                         g_font_scale = (g_font_scale > 1) ? 1 : 2;
                         g_dirty = 1;
                     }
-                    /* Row 1: Dark Theme */
-                    if (point_in(nx, ny, 24, setting_row_y(1), rw - 48, SETTING_ROW_H)) {
+                    /* Row 5: Dark Theme */
+                    if (point_in(nx, ny, 24, setting_row_y(5), rw - 48, SETTING_ROW_H)) {
                         g_dark_theme = !g_dark_theme;
-                        bg_valid = 0;  /* regenerate background */
+                        bg_valid = 0;
                         g_dirty = 1;
                     }
-                    /* Row 2: Brightness slider */
-                    if (point_in(nx, ny, bar_x, setting_row_y(2), bar_w, SETTING_ROW_H)) {
+                    /* Row 6: Brightness slider */
+                    if (point_in(nx, ny, bar_x, setting_row_y(6), bar_w, SETTING_ROW_H)) {
                         int pct = (nx - bar_x) * 100 / bar_w;
                         if (pct < 0) pct = 0;
                         if (pct > 100) pct = 100;
                         g_brightness = pct;
                         g_dirty = 1;
                     }
-                    /* Row 3: Frame Rate */
-                    if (point_in(nx, ny, 24, setting_row_y(3), rw - 48, SETTING_ROW_H)) {
+                    /* Row 7: Frame Rate */
+                    if (point_in(nx, ny, 24, setting_row_y(7), rw - 48, SETTING_ROW_H)) {
                         g_frame_rate = (g_frame_rate == 60) ? 30 : 60;
                         g_dirty = 1;
                     }
-                    /* Row 5: Wi-Fi */
-                    if (point_in(nx, ny, 24, setting_row_y(5), rw - 48, SETTING_ROW_H)) {
+                    /* Row 9: Wi-Fi */
+                    if (point_in(nx, ny, 24, setting_row_y(9), rw - 48, SETTING_ROW_H)) {
                         g_wifi_on = !g_wifi_on;
                         g_dirty = 1;
                     }
-                    /* Row 6: Bluetooth */
-                    if (point_in(nx, ny, 24, setting_row_y(6), rw - 48, SETTING_ROW_H)) {
+                    /* Row 10: Bluetooth */
+                    if (point_in(nx, ny, 24, setting_row_y(10), rw - 48, SETTING_ROW_H)) {
                         g_bt_on = !g_bt_on;
                         g_dirty = 1;
                     }
-                    /* Row 8: Volume slider */
-                    if (point_in(nx, ny, bar_x, setting_row_y(8), bar_w, SETTING_ROW_H)) {
+                    /* Row 12: Volume slider */
+                    if (point_in(nx, ny, bar_x, setting_row_y(12), bar_w, SETTING_ROW_H)) {
                         int pct = (nx - bar_x) * 100 / bar_w;
                         if (pct < 0) pct = 0;
                         if (pct > 100) pct = 100;
@@ -2043,7 +2060,7 @@ int main(void) {
 
         if (g_anim.active) {
             g_anim.frame++;
-            if (g_anim.frame >= ANIM_FRAMES) {
+            if (g_anim.frame >= g_anim_frames) {
                 g_anim.active = 0;
                 if (g_anim.opening) {
                     g_active_app = g_anim.app_idx;
