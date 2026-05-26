@@ -142,6 +142,29 @@ static int g_anim_frames = 10;    /* replaces g_anim_frames */
 static int g_font_style = 0;      /* 0=Regular, 1=Bold */
 static int g_settings_tab = 0;    /* 0=Display, 1=Network, 2=Audio, 3=About */
 
+/* ── Tile order, sizes, and layout cache ──────────────────────────── */
+static int g_tile_order[NUM_APPS];
+static int g_tile_sizes[NUM_APPS]; /* 0=std(1x1), 1=wide(2x1) */
+static int g_tile_pos_x[NUM_APPS], g_tile_pos_y[NUM_APPS];
+static int g_tile_pos_w[NUM_APPS], g_tile_pos_h[NUM_APPS];
+static int g_tile_layout_dirty = 1;
+
+/* ── Tile drag state ────────────────────────────────────────────────── */
+static int g_drag_active = 0;
+static int g_drag_slot = -1;   /* visual slot being dragged */
+static int g_drag_app = -1;    /* app index being dragged */
+static int g_drag_cur_x = 0, g_drag_cur_y = 0;
+static int g_drag_dst_slot = -1;
+
+/* ── Context menu state ─────────────────────────────────────────────── */
+#define CTX_MAX 8
+static int g_ctx_active = 0;
+static int g_ctx_x, g_ctx_y;
+static int g_ctx_count;
+static int g_ctx_hover = -1;
+static char g_ctx_labels[CTX_MAX][24];
+static int g_ctx_app; /* -1 = desktop */
+
 /* ── Shutdown confirmation / animation state ──────────────────────────── */
 static int g_confirm_shutdown = 0;   /* 0=off, 1=confirm dialog, 2=animating */
 static int g_shutdown_dot = 0;
@@ -171,8 +194,8 @@ static int last_second = -1;
 
 /* ── Calculator state ─────────────────────────────────────────────────── */
 typedef struct {
-    double accum;
-    double display;
+    int accum;
+    int display;
     char op;
     int new_input;
     int has_op;
@@ -540,17 +563,157 @@ static void draw_clock_text(uint32_t *fb, uint32_t fb_w, uint32_t fb_h,
 }
 
 /* ── Tile geometry ────────────────────────────────────────────────────── */
+static void recompute_tile_layout(void) {
+    if (!g_tile_layout_dirty) return;
+    int col = 0, row = 0;
+    for (int slot = 0; slot < NUM_APPS; slot++) {
+        int app = g_tile_order[slot];
+        int size = g_tile_sizes[app];
+        int tw = (size == 0) ? TILE_SIZE : TILE_SIZE * 2 + TILE_GAP;
+        int th = TILE_SIZE;
+        if (col + (tw / TILE_SIZE) > TILE_COLS) {
+            col = 0;
+            row++;
+        }
+        g_tile_pos_x[slot] = TILE_MARGIN + col * (TILE_SIZE + TILE_GAP);
+        g_tile_pos_y[slot] = TILE_MARGIN + row * (TILE_SIZE + TILE_GAP);
+        g_tile_pos_w[slot] = tw;
+        g_tile_pos_h[slot] = th;
+        col += tw / TILE_SIZE;
+    }
+    g_tile_layout_dirty = 0;
+}
+
 static void get_tile_rect(int idx, int *x, int *y, int *w, int *h) {
-    int col = idx % TILE_COLS;
-    int row = idx / TILE_COLS;
-    *x = TILE_MARGIN + col * (TILE_SIZE + TILE_GAP);
-    *y = TILE_MARGIN + row * (TILE_SIZE + TILE_GAP);
-    *w = TILE_SIZE;
-    *h = TILE_SIZE;
+    recompute_tile_layout();
+    *x = g_tile_pos_x[idx];
+    *y = g_tile_pos_y[idx];
+    *w = g_tile_pos_w[idx];
+    *h = g_tile_pos_h[idx];
 }
 
 static int point_in(int px, int py, int x, int y, int w, int h) {
     return px >= x && px < x + w && py >= y && py < y + h;
+}
+
+static int app_slot(int app_idx) {
+    for (int i = 0; i < NUM_APPS; i++)
+        if (g_tile_order[i] == app_idx) return i;
+    return -1;
+}
+
+/* ── Context menu ──────────────────────────────────────────────────────── */
+static void ctx_add(const char *label) {
+    if (g_ctx_count >= CTX_MAX) return;
+    int n = 0;
+    while (label[n] && n < 23) {
+        g_ctx_labels[g_ctx_count][n] = label[n];
+        n++;
+    }
+    g_ctx_labels[g_ctx_count][n] = '\0';
+    g_ctx_count++;
+}
+
+static void start_context_menu(int mx, int my, int app_idx) {
+    g_ctx_app = app_idx;
+    g_ctx_x = mx;
+    g_ctx_y = my;
+    g_ctx_count = 0;
+    g_ctx_hover = -1;
+
+    if (app_idx >= 0) {
+        ctx_add("Open");
+        ctx_add("Resize");
+        ctx_add("Move Left");
+        ctx_add("Move Right");
+        ctx_add("Send to Front");
+        ctx_add("Send to End");
+    } else {
+        ctx_add("Settings");
+        ctx_add("Refresh Wallpaper");
+    }
+    g_ctx_active = 1;
+    g_dirty = 1;
+}
+
+static void ctx_execute(int item) {
+    if (item < 0 || item >= g_ctx_count) return;
+    const char *label = g_ctx_labels[item];
+    int slot = (g_ctx_app >= 0) ? app_slot(g_ctx_app) : -1;
+
+    if (g_ctx_app >= 0) {
+        if (strcmp(label, "Open") == 0) {
+            g_active_app = g_ctx_app;
+            g_dirty = 1;
+        } else if (strcmp(label, "Resize") == 0) {
+            g_tile_sizes[g_ctx_app] = g_tile_sizes[g_ctx_app] ? 0 : 1;
+            g_tile_layout_dirty = 1;
+            g_dirty = 1;
+        } else if (strcmp(label, "Move Left") == 0 && slot > 0) {
+            int tmp = g_tile_order[slot];
+            g_tile_order[slot] = g_tile_order[slot - 1];
+            g_tile_order[slot - 1] = tmp;
+            g_tile_layout_dirty = 1;
+            g_dirty = 1;
+        } else if (strcmp(label, "Move Right") == 0 && slot < NUM_APPS - 1) {
+            int tmp = g_tile_order[slot];
+            g_tile_order[slot] = g_tile_order[slot + 1];
+            g_tile_order[slot + 1] = tmp;
+            g_tile_layout_dirty = 1;
+            g_dirty = 1;
+        } else if (strcmp(label, "Send to Front") == 0) {
+            int tmp = g_tile_order[slot];
+            for (int i = slot; i > 0; i--)
+                g_tile_order[i] = g_tile_order[i - 1];
+            g_tile_order[0] = tmp;
+            g_tile_layout_dirty = 1;
+            g_dirty = 1;
+        } else if (strcmp(label, "Send to End") == 0) {
+            int tmp = g_tile_order[slot];
+            for (int i = slot; i < NUM_APPS - 1; i++)
+                g_tile_order[i] = g_tile_order[i + 1];
+            g_tile_order[NUM_APPS - 1] = tmp;
+            g_tile_layout_dirty = 1;
+            g_dirty = 1;
+        }
+    } else {
+        if (strcmp(label, "Settings") == 0) {
+            g_active_app = APP_SETTINGS;
+            g_dirty = 1;
+        } else if (strcmp(label, "Refresh Wallpaper") == 0) {
+            g_wallpaper_style = (g_wallpaper_style + 1) % NUM_WALLPAPERS;
+            bg_valid = 0;
+            g_dirty = 1;
+        }
+    }
+    g_ctx_active = 0;
+}
+
+static void draw_context_menu(uint32_t *fb, int fb_w, int fb_h) {
+    if (!g_ctx_active) return;
+    int mw = 160, mh = g_ctx_count * 24 + 8;
+    int mx = g_ctx_x;
+    int my = g_ctx_y;
+    if (mx + mw > fb_w) mx = fb_w - mw - 4;
+    if (my + mh > fb_h) my = fb_h - mh - 4;
+    uint32_t col_accent = get_accent_color();
+    uint32_t bg = 0xE0202020;
+    uint32_t border = col_accent;
+    uint32_t text_col = 0xFFE0E0E0;
+    uint32_t hover_bg = (col_accent & 0x00FFFFFF) | 0x40000000;
+
+    fill_rect(fb, fb_w, fb_h, mx, my, mw, mh, bg);
+    fill_rect(fb, fb_w, fb_h, mx, my, mw, 1, border);
+    fill_rect(fb, fb_w, fb_h, mx, my + mh - 1, mw, 1, border);
+    fill_rect(fb, fb_w, fb_h, mx, my, 1, mh, border);
+    fill_rect(fb, fb_w, fb_h, mx + mw - 1, my, 1, mh, border);
+
+    for (int i = 0; i < g_ctx_count; i++) {
+        int iy = my + 4 + i * 24;
+        if (i == g_ctx_hover)
+            fill_rect(fb, fb_w, fb_h, mx + 2, iy, mw - 4, 24, hover_bg);
+        draw_text(fb, fb_w, fb_h, mx + 8, iy + 4, g_ctx_labels[i], text_col);
+    }
 }
 
 /* ── Forward declarations ─────────────────────────────────────────────── */
@@ -721,20 +884,21 @@ static void render_bg(uint32_t *fb, uint32_t w, uint32_t h) {
 
 /* ── Start screen tiles ────────────────────────────────────────────────── */
 static void draw_tile(uint32_t *fb, uint32_t w, uint32_t h,
-                      int idx, int hovered) {
+                      int slot, int hovered) {
+    int app = g_tile_order[slot];
     int tx, ty, tw, th;
-    get_tile_rect(idx, &tx, &ty, &tw, &th);
-    uint32_t color = g_apps[idx].color;
+    get_tile_rect(slot, &tx, &ty, &tw, &th);
+    uint32_t color = g_apps[app].color;
     if (hovered) color = blend(0x44FFFFFF, color, 40);
     fill_rect(fb, w, h, tx, ty, tw, th, color);
 
     int icon_size = tw / 3;
     int icon_cx = tx + tw / 2;
     int icon_cy = ty + th / 2 - 6;
-    draw_icon(fb, w, h, icon_cx, icon_cy, icon_size, g_apps[idx].icon, METRO_TEXT);
+    draw_icon(fb, w, h, icon_cx, icon_cy, icon_size, g_apps[app].icon, METRO_TEXT);
 
     int name_y = ty + th - FONT_H - 6;
-    const char *name = g_apps[idx].name;
+    const char *name = g_apps[app].name;
     int name_w = (int)strlen(name) * (FONT_W + 1);
     draw_text(fb, w, h, tx + (tw - name_w * g_font_scale) / 2, name_y, name, METRO_TEXT);
 }
@@ -742,10 +906,12 @@ static void draw_tile(uint32_t *fb, uint32_t w, uint32_t h,
 static void draw_start_screen(uint32_t *fb, uint32_t w, uint32_t h) {
     render_bg(fb, w, h);
 
-    int num_tiles = NUM_APPS;
-    for (int i = 0; i < num_tiles; i++) {
-        if (g_anim.active && g_anim.opening && g_anim.app_idx == i) continue;
-        if (g_anim.active && !g_anim.opening && g_anim.app_idx == i) {
+    for (int slot = 0; slot < NUM_APPS; slot++) {
+        int app = g_tile_order[slot];
+        if (g_anim.active && g_anim.opening && g_anim.app_idx == app) continue;
+        if (g_anim.active && !g_anim.opening && g_anim.app_idx == app) {
+            int anim_slot = app_slot(app);
+            if (anim_slot < 0) { draw_tile(fb, w, h, slot, 0); continue; }
             int tw = (int)w, th = (int)h;
             int tx = 0, ty = 0;
             int progress = (g_anim.frame * 256) / g_anim_frames;
@@ -754,16 +920,16 @@ static void draw_start_screen(uint32_t *fb, uint32_t w, uint32_t h) {
             int cy = g_anim.tile_y + (ty - g_anim.tile_y) * eased / 256;
             int cw = g_anim.tile_w + (tw - g_anim.tile_w) * eased / 256;
             int ch = g_anim.tile_h + (th - g_anim.tile_h) * eased / 256;
-            uint32_t color = g_apps[i].color;
+            uint32_t color = g_apps[app].color;
             fill_rect(fb, w, h, cx, cy, cw, ch, color);
             int icon_size = cw / 3;
-            draw_icon(fb, w, h, cx + cw / 2, cy + ch / 2 - 8, icon_size, g_apps[i].icon, METRO_TEXT);
+            draw_icon(fb, w, h, cx + cw / 2, cy + ch / 2 - 8, icon_size, g_apps[app].icon, METRO_TEXT);
             int name_y = cy + ch - FONT_H - 8;
-            const char *name = g_apps[i].name;
+            const char *name = g_apps[app].name;
             int name_w = (int)strlen(name) * (FONT_W + 1);
             draw_text(fb, w, h, cx + (cw - name_w * g_font_scale) / 2, name_y, name, METRO_TEXT);
         } else {
-            draw_tile(fb, w, h, i, g_tile_hover == i);
+            draw_tile(fb, w, h, slot, g_tile_hover == slot);
         }
     }
 }
@@ -807,14 +973,12 @@ static void calc_reset(void) {
 static void calc_press(char btn) {
     if (btn >= '0' && btn <= '9') {
         if (g_calc.new_input) {
-            g_calc.display = (double)(btn - '0');
+            g_calc.display = btn - '0';
             g_calc.new_input = 0;
         } else {
-            g_calc.display = g_calc.display * 10.0 + (double)(btn - '0');
+            g_calc.display = g_calc.display * 10 + (btn - '0');
         }
         if (g_calc.display > 99999999) g_calc.display = 99999999;
-    } else if (btn == '.') {
-        if (g_calc.new_input) { g_calc.display = 0.0; g_calc.new_input = 0; }
     } else if (btn == 'C') {
         calc_reset();
     } else if (btn == '=' || btn == '+' || btn == '-' || btn == '*' || btn == '/') {
@@ -836,7 +1000,7 @@ static void calc_press(char btn) {
     }
     {
         char buf[20];
-        int n = snprintf(buf, 20, "%.0f", g_calc.display);
+        int n = snprintf(buf, 20, "%d", g_calc.display);
         if (n > 0 && n < 20) strcpy(g_calc.disp_str, buf);
         else strcpy(g_calc.disp_str, "0");
     }
@@ -1533,6 +1697,28 @@ static void render_frame(void) {
     /* Shutdown confirmation / animation overlay */
     if (g_confirm_shutdown)
         draw_shutdown_overlay(fb32, w, h);
+
+    /* Context menu overlay */
+    if (g_ctx_active)
+        draw_context_menu(fb32, w, h);
+
+    /* Drag overlay: draw dragged tile at cursor */
+    if (g_drag_active == 2 && g_drag_app >= 0) {
+        int dw = g_tile_pos_w[g_drag_slot];
+        int dh = g_tile_pos_h[g_drag_slot];
+        int dx = g_drag_cur_x - (dw / 2);
+        int dy = g_drag_cur_y - (dh / 2);
+        uint32_t drag_col = g_apps[g_drag_app].color;
+        drag_col = blend(0x80FFFFFF, drag_col, 40);
+        fill_rect(fb32, w, h, dx, dy, dw, dh, drag_col);
+        int icon_size = dw / 3;
+        draw_icon(fb32, w, h, dx + dw / 2, dy + dh / 2 - 6, icon_size,
+                  g_apps[g_drag_app].icon, METRO_TEXT);
+        int name_y = dy + dh - FONT_H - 6;
+        const char *name = g_apps[g_drag_app].name;
+        int name_w = (int)strlen(name) * (FONT_W + 1);
+        draw_text(fb32, w, h, dx + (dw - name_w * g_font_scale) / 2, name_y, name, METRO_TEXT);
+    }
 }
 
 /* ── Process mouse events ───────────────────────────────────────────────── */
@@ -1593,6 +1779,8 @@ static void process_mouse(void) {
         zf_set_cursor(cursor_x, cursor_y);
 
         int left_down = (ev.buttons & 1) && !(prev_buttons & 1);
+        int left_up = !(ev.buttons & 1) && (prev_buttons & 1);
+        int right_down = (ev.buttons & 2) && !(prev_buttons & 2);
         prev_buttons = ev.buttons;
 
         g_tile_hover = -1;
@@ -1655,7 +1843,7 @@ static void process_mouse(void) {
                 if (g_back_hover) {
                     if (g_active_app >= 0) {
                         int tx, ty, tw, th;
-                        get_tile_rect(g_active_app, &tx, &ty, &tw, &th);
+                        get_tile_rect(app_slot(g_active_app), &tx, &ty, &tw, &th);
                         g_anim.active = 1;
                         g_anim.opening = 0;
                         g_anim.app_idx = g_active_app;
@@ -1767,16 +1955,114 @@ static void process_mouse(void) {
             continue;
         }
 
-        for (int i = 0; i < NUM_APPS; i++) {
+        /* ── Context menu interaction ────────────────────────────────────── */
+        if (g_ctx_active) {
+            int mw = 160, mh = g_ctx_count * 24 + 8;
+            int mx = g_ctx_x;
+            int my = g_ctx_y;
+            if (mx + mw > (int)ww) mx = (int)ww - mw - 4;
+            if (my + mh > (int)wh) my = (int)wh - mh - 4;
+            if (point_in(nx, ny, mx, my, mw, mh)) {
+                int item = (ny - my - 4) / 24;
+                g_ctx_hover = (item >= 0 && item < g_ctx_count) ? item : -1;
+                if (left_down && g_ctx_hover >= 0) {
+                    ctx_execute(g_ctx_hover);
+                    g_dirty = 1;
+                }
+            } else {
+                g_ctx_hover = -1;
+                if (left_down || right_down) {
+                    g_ctx_active = 0;
+                    g_dirty = 1;
+                }
+            }
+            continue;
+        }
+
+        /* ── Tile hover ───────────────────────────────────────────────── */
+        for (int slot = 0; slot < NUM_APPS; slot++) {
             int tx, ty, tw, th;
-            get_tile_rect(i, &tx, &ty, &tw, &th);
+            get_tile_rect(slot, &tx, &ty, &tw, &th);
             if (point_in(nx, ny, tx, ty, tw, th)) {
-                g_tile_hover = i;
+                g_tile_hover = slot;
                 break;
             }
         }
 
-        /* Taskbar buttons hover */
+        /* ── Right-click → context menu ────────────────────────────── */
+        if (right_down) {
+            int slot = g_tile_hover;
+            start_context_menu(nx, ny, (slot >= 0) ? g_tile_order[slot] : -1);
+        }
+
+        /* ── Tile drag / open ─────────────────────────────────────────── */
+        if (g_drag_active) {
+            if (left_up) {
+                if (g_drag_active == 1) {
+                    /* Click (no drag) → open app */
+                    int app = g_drag_app;
+                    int slot = app_slot(app);
+                    if (slot >= 0) {
+                        int tx, ty, tw, th;
+                        get_tile_rect(slot, &tx, &ty, &tw, &th);
+                        g_anim.active = 1;
+                        g_anim.opening = 1;
+                        g_anim.app_idx = app;
+                        g_anim.frame = 0;
+                        g_anim.tile_x = tx; g_anim.tile_y = ty;
+                        g_anim.tile_w = tw; g_anim.tile_h = th;
+                        g_anim.scr_w = (int)ww; g_anim.scr_h = (int)wh;
+                        g_active_app = app;
+                        g_dirty = 1;
+                    }
+                } else {
+                    /* Drag complete → swap tiles */
+                    if (g_drag_dst_slot >= 0 && g_drag_dst_slot != g_drag_slot) {
+                        int tmp = g_tile_order[g_drag_slot];
+                        g_tile_order[g_drag_slot] = g_tile_order[g_drag_dst_slot];
+                        g_tile_order[g_drag_dst_slot] = tmp;
+                        g_tile_layout_dirty = 1;
+                        g_dirty = 1;
+                    }
+                }
+                g_drag_active = 0;
+                g_drag_slot = -1;
+                g_drag_dst_slot = -1;
+            } else if (g_drag_active == 1) {
+                int dx = nx - g_drag_cur_x;
+                int dy = ny - g_drag_cur_y;
+                if (dx * dx + dy * dy > 64) {
+                    g_drag_active = 2;
+                    g_dirty = 1;
+                }
+                g_drag_cur_x = nx;
+                g_drag_cur_y = ny;
+            } else if (g_drag_active == 2) {
+                g_drag_cur_x = nx;
+                g_drag_cur_y = ny;
+                g_drag_dst_slot = -1;
+                for (int slot = 0; slot < NUM_APPS; slot++) {
+                    if (slot == g_drag_slot) continue;
+                    int tx, ty, tw, th;
+                    get_tile_rect(slot, &tx, &ty, &tw, &th);
+                    if (point_in(nx, ny, tx, ty, tw, th)) {
+                        g_drag_dst_slot = slot;
+                        break;
+                    }
+                }
+                g_dirty = 1;
+            }
+        } else if (left_down && g_tile_hover >= 0) {
+            /* Start potential drag */
+            g_drag_active = 1;
+            g_drag_slot = g_tile_hover;
+            g_drag_app = g_tile_order[g_tile_hover];
+            g_drag_cur_x = nx;
+            g_drag_cur_y = ny;
+            g_drag_dst_slot = -1;
+        }
+
+        /* ── Taskbar buttons ─────────────────────────────────────────── */
         int tb_y = (int)wh - TASKBAR_H;
         int btn_y = tb_y + 4;
         int btn_h = TASKBAR_H - 8;
@@ -1788,19 +2074,6 @@ static void process_mouse(void) {
         int pwr_w = 60;
         if (point_in(nx, ny, pwr_x, btn_y, pwr_w, btn_h))
             g_power_hover = 1;
-
-        if (left_down && g_tile_hover >= 0) {
-            int tx, ty, tw, th;
-            get_tile_rect(g_tile_hover, &tx, &ty, &tw, &th);
-            g_anim.active = 1;
-            g_anim.opening = 1;
-            g_anim.app_idx = g_tile_hover;
-            g_anim.frame = 0;
-            g_anim.tile_x = tx; g_anim.tile_y = ty;
-            g_anim.tile_w = tw; g_anim.tile_h = th;
-            g_anim.scr_w = (int)ww; g_anim.scr_h = (int)wh;
-            g_dirty = 1;
-        }
 
         if (left_down && g_exit_hover) {
             zf_disconnect();
@@ -2102,6 +2375,13 @@ int main(void) {
     snake_reset();
     pong_reset();
     tetris_reset();
+
+    /* Initialize tile order and sizes */
+    for (int i = 0; i < NUM_APPS; i++) {
+        g_tile_order[i] = i;
+        g_tile_sizes[i] = 0;
+    }
+    g_tile_layout_dirty = 1;
 
     size_t fb_size = (size_t)g_buf.stride * g_buf.height;
 
