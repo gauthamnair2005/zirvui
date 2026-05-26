@@ -105,15 +105,17 @@ static void fp_transform(const fp_mat4 *m, int x, int y, int z, int *ox, int *oy
 static const char *g_demo_tab_names[4] = {"Shapes", "3D", "Widgets", "Icons"};
 
 static void draw_tabs(uint32_t *fb, uint32_t w, uint32_t h) {
-    int tw = w / 4;
+    int tw = (int)w / 4;
+    int pad = 4;
     for (int i = 0; i < 4; i++) {
-        int x = i * tw;
-        uint32_t col = (i == g_demo_tab) ? 0xFF3388CC : 0xFF222244;
-        ztk_fb_fill_rect(fb, w, h, x, TABS_Y, tw, TAB_H, col);
-        ztk_fb_draw_text(fb, w, h, x + 12, TABS_Y + (TAB_H - 13) / 2,
+        int x = i * tw + pad;
+        int tw_inner = tw - pad * 2;
+        uint32_t col = (i == g_demo_tab) ? 0xFF2A4A6E : 0xFF1E1E38;
+        ztk_fb_fill_round_rect(fb, w, h, x, TABS_Y, tw_inner, TAB_H, 8, col);
+        ztk_fb_draw_text(fb, w, h, x + (tw_inner - (int)strlen(g_demo_tab_names[i]) * 9) / 2,
+                         TABS_Y + (TAB_H - 13) / 2,
                          (const uint8_t *)g_demo_tab_names[i], 0xFFFFFFFF);
     }
-    ztk_fb_hline(fb, w, h, 0, TABS_Y + TAB_H, w, 0xFF445566);
 }
 
 #define CONTENT_Y (TABS_Y + TAB_H + 6)

@@ -9,44 +9,39 @@
 
 typedef zf_mouse_event_t mouse_event_t;
 
+/* Freestanding abs (not in zirvlibc) */
+static inline int iabs(int x) { return x < 0 ? -x : x; }
+
 #define MAX_W      1920
 #define MAX_H      1080
 #define FONT_W     8
 #define FONT_H     13
 
-/* ── Metro color scheme (Windows 8 style) ─────────────────────────────── */
-#define METRO_BG         0xFF1A1A2E
-#define METRO_BG2        0xFF16213E
-#define METRO_TASKBAR    0xFF0F0F1A
-#define METRO_ACCENT     0xFF00B7C3
-#define METRO_TEXT        0xFFFFFFFF
-#define METRO_TEXT_DIM    0xFF8888AA
-#define METRO_TILE_TERM  0xFF1E90FF
-#define METRO_TILE_CALC  0xFF50C878
-#define METRO_TILE_SETT  0xFF6C7A89
-#define METRO_TILE_CLOCK 0xFF2C3E50
-#define METRO_TILE_EDITR 0xFF8E44AD
-#define METRO_TILE_SNAKE 0xFF27AE60
-#define METRO_TILE_PONG  0xFF2980B9
-#define METRO_TILE_TETRS 0xFFC0392B
-#define METRO_TILE_DEMO 0xFF663399
-#define METRO_BACK_BTN   0xFF444466
-#define METRO_TILE_HOVER 0x22FFFFFF
-#define METRO_DIALOG_BG  0xFF1A1A3E
+/* ── UI26 design language ─────────────────────────────────────────── */
+#define UI26_BG         0xFF0D0D1A
+#define UI26_BG2        0xFF16162A
+#define UI26_SURFACE    0xFF1A1A30
+#define UI26_ACCENT     0xFF00D4FF
+#define UI26_TEXT        0xFFFFFFFF
+#define UI26_TEXT_DIM    0xFF8888BB
+#define UI26_TILE_TERM  0xFF0088FF
+#define UI26_TILE_CALC  0xFF00CC88
+#define UI26_TILE_SETT  0xFF607D8B
+#define UI26_TILE_CLOCK 0xFF34495E
+#define UI26_TILE_EDITR 0xFF9B59B6
+#define UI26_TILE_SNAKE 0xFF2ECC71
+#define UI26_TILE_PONG  0xFF3498DB
+#define UI26_TILE_TETRS 0xFFE74C3C
+#define UI26_TILE_DEMO  0xFF8E44AD
+#define UI26_BACK_BTN   0xFF2A2A4A
+#define UI26_TILE_HOVER 0x33FFFFFF
+#define UI26_DIALOG_BG  0xFF16162A
+#define UI26_TILE_RADIUS 8
 
 /* ── Wallpaper gradient presets (6 schemes) ──────────────────────────── */
 #define NUM_WALLPAPERS 6
 static const char *wallpaper_names[NUM_WALLPAPERS] = {
     "Deep Blue", "Twilight", "Forest", "Sunset", "Ocean", "Midnight",
-};
-/* Each preset: top_r,top_g,top_b, mid_r,mid_g,mid_b, bot_r,bot_g,bot_b */
-static const uint8_t wallpaper_colors[NUM_WALLPAPERS][9] = {
-    {0x1A,0x1A,0x2E, 0x16,0x21,0x3E, 0x12,0x1A,0x2A}, /* Deep Blue */
-    {0x2E,0x1A,0x3E, 0x21,0x16,0x2E, 0x1A,0x12,0x1A}, /* Twilight */
-    {0x1A,0x2E,0x1A, 0x16,0x21,0x16, 0x0A,0x1A,0x0A}, /* Forest */
-    {0x3E,0x1A,0x16, 0x2E,0x1A,0x12, 0x1A,0x12,0x0A}, /* Sunset */
-    {0x16,0x2E,0x3E, 0x12,0x21,0x2E, 0x0A,0x1A,0x1A}, /* Ocean */
-    {0x0F,0x0F,0x1A, 0x0A,0x0A,0x14, 0x05,0x05,0x0A}, /* Midnight */
 };
 
 /* ── Accent color presets (8 colors) ─────────────────────────────────── */
@@ -60,12 +55,12 @@ static const char *accent_names[NUM_ACCENTS] = {
 };
 
 /* ── Layout constants ─────────────────────────────────────────────────── */
-#define TILE_SIZE    120
-#define TILE_GAP     16
-#define TILE_MARGIN  48
-#define TILE_COLS    6
-#define TASKBAR_H    40
 #define TITLEBAR_H   36
+#define PANEL_H     TITLEBAR_H
+
+/* ── App menu constants ──────────────────────────────────────────────── */
+#define MENU_W       180
+#define MENU_ITEM_H  24
 
 /* ── App icons ─────────────────────────────────────────────────────────── */
 enum {
@@ -78,6 +73,7 @@ enum {
     ICON_PONG,
     ICON_TETRIS,
     ICON_DEMO,
+    ICON_ZIRVIUM,
     NUM_ICONS,
 };
 
@@ -102,21 +98,21 @@ typedef struct {
 } AppDef;
 
 static const AppDef g_apps[NUM_APPS] = {
-    {"Terminal",   METRO_TILE_TERM,  ICON_TERMINAL},
-    {"Calculator", METRO_TILE_CALC,  ICON_CALC},
-    {"Settings",   METRO_TILE_SETT,  ICON_SETTINGS},
-    {"Clock",      METRO_TILE_CLOCK, ICON_CLOCK},
-    {"Editor",     METRO_TILE_EDITR, ICON_EDITOR},
-    {"Snake",      METRO_TILE_SNAKE, ICON_SNAKE},
-    {"Pong",       METRO_TILE_PONG,  ICON_PONG},
-    {"Tetris",     METRO_TILE_TETRS, ICON_TETRIS},
-    {"Demo",       METRO_TILE_DEMO,  ICON_DEMO},
+    {"Terminal",   UI26_TILE_TERM,  ICON_TERMINAL},
+    {"Calculator", UI26_TILE_CALC,  ICON_CALC},
+    {"Settings",   UI26_TILE_SETT,  ICON_SETTINGS},
+    {"Clock",      UI26_TILE_CLOCK, ICON_CLOCK},
+    {"Editor",     UI26_TILE_EDITR, ICON_EDITOR},
+    {"Snake",      UI26_TILE_SNAKE, ICON_SNAKE},
+    {"Pong",       UI26_TILE_PONG,  ICON_PONG},
+    {"Tetris",     UI26_TILE_TETRS, ICON_TETRIS},
+    {"Demo",       UI26_TILE_DEMO,  ICON_DEMO},
 };
+
+
 
 /* ── Framebuffer state ────────────────────────────────────────────────── */
 static uint8_t compositor_fb[MAX_W * MAX_H * 4];
-static uint8_t bg_cache[MAX_W * MAX_H * 4];
-static int bg_valid = 0;
 static zf_buffer_t g_buf;
 static zf_display_info_t g_info;
 static int cursor_x = 0, cursor_y = 0;
@@ -125,7 +121,6 @@ static int g_dirty = 1;
 
 /* ── UI state ─────────────────────────────────────────────────────────── */
 static int g_active_app = -1;
-static int g_tile_hover = -1;
 static int g_back_hover = 0;
 static int g_font_scale = 1;
 static int g_dark_theme = 1;    /* 1=dark, 0=light */
@@ -134,27 +129,15 @@ static int g_frame_rate = 60;   /* 30 or 60 */
 static int g_wifi_on = 1;
 static int g_bt_on = 0;
 static int g_volume = 75;       /* 0-100 */
-static int g_exit_hover = 0;
 static int g_power_hover = 0;
 static int g_wallpaper_style = 0; /* 0-5 */
 static int g_accent_color = 0;    /* 0-7 */
-static int g_anim_frames = 10;    /* replaces g_anim_frames */
-static int g_font_style = 0;      /* 0=Regular, 1=Bold */
+static int g_font_style = 1;      /* 0=Regular, 1=Bold */
 static int g_settings_tab = 0;    /* 0=Display, 1=Network, 2=Audio, 3=About */
 
-/* ── Tile order, sizes, and layout cache ──────────────────────────── */
-static int g_tile_order[NUM_APPS];
-static int g_tile_sizes[NUM_APPS]; /* 0=std(1x1), 1=wide(2x1) */
-static int g_tile_pos_x[NUM_APPS], g_tile_pos_y[NUM_APPS];
-static int g_tile_pos_w[NUM_APPS], g_tile_pos_h[NUM_APPS];
-static int g_tile_layout_dirty = 1;
-
-/* ── Tile drag state ────────────────────────────────────────────────── */
-static int g_drag_active = 0;
-static int g_drag_slot = -1;   /* visual slot being dragged */
-static int g_drag_app = -1;    /* app index being dragged */
-static int g_drag_cur_x = 0, g_drag_cur_y = 0;
-static int g_drag_dst_slot = -1;
+/* ── GNOME 2 App menu state ────────────────────────────────────────── */
+static int g_menu_active = 0;
+static int g_menu_hover = -1;
 
 /* ── Context menu state ─────────────────────────────────────────────── */
 #define CTX_MAX 8
@@ -444,23 +427,28 @@ static void tetris_reset(void) {
     g_tetris.tick = 0;
 }
 
-/* ── Animation state ──────────────────────────────────────────────────── */
-typedef struct {
-    int active;
-    int opening;
-    int app_idx;
-    int frame;
-    int tile_x, tile_y, tile_w, tile_h;
-    int scr_w, scr_h;
-} AnimState;
 
-static AnimState g_anim;
 
-/* ── Smoothstep table (0..256) ────────────────────────────────────────── */
-static int smoothstep(int t) {
-    if (t <= 0) return 0;
-    if (t >= 256) return 256;
-    return (t * t * (768 - (t * 2))) / (256 * 256);
+/* ── Dropdown menu state ────────────────────────────────────────────── */
+#define DROPDOWN_MAX_ITEMS 12
+static int g_dropdown_active = 0;
+static int g_dropdown_x, g_dropdown_y, g_dropdown_w, g_dropdown_h;
+static int g_dropdown_hover = -1;
+static int g_dropdown_count = 0;
+static const char *g_dropdown_items[DROPDOWN_MAX_ITEMS];
+static int g_dropdown_callback = 0;
+static int g_dropdown_item_h = 24;
+
+static void dropdown_open(int dx, int dy, int count, const char **items, int callback_id) {
+    g_dropdown_count = count < DROPDOWN_MAX_ITEMS ? count : DROPDOWN_MAX_ITEMS;
+    for (int i = 0; i < g_dropdown_count; i++) g_dropdown_items[i] = items[i];
+    g_dropdown_callback = callback_id;
+    g_dropdown_x = dx;
+    g_dropdown_y = dy;
+    g_dropdown_w = 160;
+    g_dropdown_h = g_dropdown_count * g_dropdown_item_h + 8;
+    g_dropdown_hover = -1;
+    g_dropdown_active = 1;
 }
 
 uint32_t get_accent_color(void) {
@@ -475,6 +463,64 @@ static uint32_t blend(uint32_t fg, uint32_t bg, uint8_t alpha) {
 static void fill_rect(uint32_t *fb, uint32_t fb_w, uint32_t fb_h,
                       int x, int y, int w, int h, uint32_t color) {
     ztk_fb_fill_rect(fb, fb_w, fb_h, x, y, (uint32_t)(w > 0 ? w : 0), (uint32_t)(h > 0 ? h : 0), color);
+}
+
+/* ── Rounded rectangle (simple AA corners, no sub-pixel sampling) ───── */
+static void fill_round_rect(uint32_t *fb, uint32_t fb_w, uint32_t fb_h,
+                            int x, int y, int w, int h, int r, uint32_t color) {
+    if (r < 1) r = 1;
+    int r2 = r * r;
+    for (int py = y; py < y + h && py < (int)fb_h; py++) {
+        for (int px = x; px < x + w && px < (int)fb_w; px++) {
+            float dx = 0.0f, dy = 0.0f;
+            int corner = 0;
+            if (px < x + r && py < y + r) {
+                dx = (float)(px - (x + r)) + 0.5f;
+                dy = (float)(py - (y + r)) + 0.5f;
+                corner = 1;
+            } else if (px >= x + w - r && py < y + r) {
+                dx = (float)(px - (x + w - r - 1)) - 0.5f;
+                dy = (float)(py - (y + r)) + 0.5f;
+                corner = 1;
+            } else if (px < x + r && py >= y + h - r) {
+                dx = (float)(px - (x + r)) + 0.5f;
+                dy = (float)(py - (y + h - r - 1)) - 0.5f;
+                corner = 1;
+            } else if (px >= x + w - r && py >= y + h - r) {
+                dx = (float)(px - (x + w - r - 1)) - 0.5f;
+                dy = (float)(py - (y + h - r - 1)) - 0.5f;
+                corner = 1;
+            }
+            if (corner) {
+                float dist2 = dx * dx + dy * dy;
+                if (dist2 >= (float)(r2 + r)) continue;  /* hard edge for perf */
+                fb[(uint32_t)py * fb_w + (uint32_t)px] = color;
+                continue;
+            }
+            fb[(uint32_t)py * fb_w + (uint32_t)px] = color;
+        }
+    }
+}
+
+/* ── Glassmorphism panel: semi-transparent with rounded corners and border highlight ── */
+static void fill_glass_panel(uint32_t *fb, uint32_t fb_w, uint32_t fb_h,
+                             int x, int y, int w, int h, int r, uint32_t tint, uint32_t border) {
+    fill_round_rect(fb, fb_w, fb_h, x, y, w, h, r, tint);
+    if (border) {
+        /* top edge */
+        uint32_t b2 = blend(border, tint, 100);
+        for (int px = x + r; px < x + w - r; px++) {
+            int py = y;
+            if (py >= 0 && py < (int)fb_h && px >= 0 && px < (int)fb_w)
+                fb[(uint32_t)py * fb_w + (uint32_t)px] = b2;
+        }
+        /* bottom edge */
+        for (int px = x + r; px < x + w - r; px++) {
+            int py = y + h - 1;
+            if (py >= 0 && py < (int)fb_h && px >= 0 && px < (int)fb_w)
+                fb[(uint32_t)py * fb_w + (uint32_t)px] = b2;
+        }
+    }
 }
 
 /* ── 8x13 bitmap font ─────────────────────────────────────────────────── */
@@ -506,6 +552,7 @@ static const uint8_t *font_get(char c) {
 static void draw_char(uint32_t *fb, uint32_t fb_w, uint32_t fb_h,
                       int x, int y, char c, uint32_t color) {
     const uint8_t *bm = font_get(c);
+    static const uint8_t cov_alpha[9] = {80, 110, 130, 150, 170, 195, 215, 240, 255};
     for (int row = 0; row < FONT_H && (y + row) < (int)fb_h; row++) {
         uint8_t bits = bm[row];
         if (bits == 0) continue;
@@ -514,16 +561,44 @@ static void draw_char(uint32_t *fb, uint32_t fb_w, uint32_t fb_h,
                 int px = x + col, py = y + row;
                 if (px < 0 || py < 0) continue;
                 uint32_t off = (uint32_t)py * fb_w + (uint32_t)px;
-                int tl = (col > 0 && (bits & (1 << (7 - col + 1)))) ? 1 : 0;
-                int tr = (col < FONT_W - 1 && (bits & (1 << (7 - col - 1)))) ? 1 : 0;
-                int tu = (row > 0 && (bm[row - 1] & (1 << (7 - col)))) ? 1 : 0;
-                int td = (row < FONT_H - 1 && (bm[row + 1] & (1 << (7 - col)))) ? 1 : 0;
-                if (tl && tr && tu && td)
-                    fb[off] = color;
-                else
-                    fb[off] = blend(color, fb[off], 180);
+                int count = 0;
+                for (int dr = -1; dr <= 1; dr++) {
+                    for (int dc = -1; dc <= 1; dc++) {
+                        if (dr == 0 && dc == 0) continue;
+                        int nr = row + dr, nc = col + dc;
+                        if (nr >= 0 && nr < FONT_H && nc >= 0 && nc < FONT_W) {
+                            if (bm[nr] & (1 << (7 - nc))) count++;
+                        }
+                    }
+                }
+                uint8_t alpha = cov_alpha[count];
+                if (alpha >= 255) fb[off] = color;
+                else fb[off] = blend(color, fb[off], alpha);
             }
         }
+    }
+}
+
+/* ── Dropdown menu drawing ──────────────────────────────────────────────── */
+static void draw_text(uint32_t *fb, uint32_t fb_w, uint32_t fb_h,
+                      int x, int y, const char *str, uint32_t color);
+static void draw_dropdown(uint32_t *fb, uint32_t fb_w, uint32_t fb_h) {
+    if (!g_dropdown_active) return;
+    uint32_t accent = get_accent_color();
+    uint32_t glass_bg = blend(0xE0202020, 0x00000000, 200);
+    uint32_t hover_bg = blend(accent, 0x00000000, 60);
+    int ih = g_dropdown_item_h;
+
+    fill_glass_panel(fb, fb_w, fb_h, g_dropdown_x, g_dropdown_y,
+                     g_dropdown_w, g_dropdown_h, 6, glass_bg, accent);
+
+    for (int i = 0; i < g_dropdown_count; i++) {
+        int iy = g_dropdown_y + 4 + i * ih;
+        if (i == g_dropdown_hover)
+            fill_round_rect(fb, fb_w, fb_h, g_dropdown_x + 2, iy,
+                            g_dropdown_w - 4, ih, 4, hover_bg);
+        draw_text(fb, fb_w, fb_h, g_dropdown_x + 10, iy + (ih - FONT_H) / 2,
+                  g_dropdown_items[i], 0xFFE0E0E0);
     }
 }
 
@@ -545,61 +620,9 @@ static void draw_text(uint32_t *fb, uint32_t fb_w, uint32_t fb_h,
     }
 }
 
-static void draw_clock_text(uint32_t *fb, uint32_t fb_w, uint32_t fb_h,
-                            int x, int y, uint32_t color) {
-    struct datetime dt;
-    if (getdatetime(&dt) < 0) {
-        draw_char(fb, fb_w, fb_h, x, y, '-', color);
-        return;
-    }
-    char buf[6];
-    buf[0] = (char)('0' + dt.hour / 10);
-    buf[1] = (char)('0' + dt.hour % 10);
-    buf[2] = ':';
-    buf[3] = (char)('0' + dt.minute / 10);
-    buf[4] = (char)('0' + dt.minute % 10);
-    buf[5] = '\0';
-    draw_text(fb, fb_w, fb_h, x, y, buf, color);
-}
-
-/* ── Tile geometry ────────────────────────────────────────────────────── */
-static void recompute_tile_layout(void) {
-    if (!g_tile_layout_dirty) return;
-    int col = 0, row = 0;
-    for (int slot = 0; slot < NUM_APPS; slot++) {
-        int app = g_tile_order[slot];
-        int size = g_tile_sizes[app];
-        int tw = (size == 0) ? TILE_SIZE : TILE_SIZE * 2 + TILE_GAP;
-        int th = TILE_SIZE;
-        if (col + (tw / TILE_SIZE) > TILE_COLS) {
-            col = 0;
-            row++;
-        }
-        g_tile_pos_x[slot] = TILE_MARGIN + col * (TILE_SIZE + TILE_GAP);
-        g_tile_pos_y[slot] = TILE_MARGIN + row * (TILE_SIZE + TILE_GAP);
-        g_tile_pos_w[slot] = tw;
-        g_tile_pos_h[slot] = th;
-        col += tw / TILE_SIZE;
-    }
-    g_tile_layout_dirty = 0;
-}
-
-static void get_tile_rect(int idx, int *x, int *y, int *w, int *h) {
-    recompute_tile_layout();
-    *x = g_tile_pos_x[idx];
-    *y = g_tile_pos_y[idx];
-    *w = g_tile_pos_w[idx];
-    *h = g_tile_pos_h[idx];
-}
 
 static int point_in(int px, int py, int x, int y, int w, int h) {
     return px >= x && px < x + w && py >= y && py < y + h;
-}
-
-static int app_slot(int app_idx) {
-    for (int i = 0; i < NUM_APPS; i++)
-        if (g_tile_order[i] == app_idx) return i;
-    return -1;
 }
 
 /* ── Context menu ──────────────────────────────────────────────────────── */
@@ -620,17 +643,10 @@ static void start_context_menu(int mx, int my, int app_idx) {
     g_ctx_y = my;
     g_ctx_count = 0;
     g_ctx_hover = -1;
-
     if (app_idx >= 0) {
         ctx_add("Open");
-        ctx_add("Resize");
-        ctx_add("Move Left");
-        ctx_add("Move Right");
-        ctx_add("Send to Front");
-        ctx_add("Send to End");
     } else {
         ctx_add("Settings");
-        ctx_add("Refresh Wallpaper");
     }
     g_ctx_active = 1;
     g_dirty = 1;
@@ -639,50 +655,14 @@ static void start_context_menu(int mx, int my, int app_idx) {
 static void ctx_execute(int item) {
     if (item < 0 || item >= g_ctx_count) return;
     const char *label = g_ctx_labels[item];
-    int slot = (g_ctx_app >= 0) ? app_slot(g_ctx_app) : -1;
-
     if (g_ctx_app >= 0) {
         if (strcmp(label, "Open") == 0) {
             g_active_app = g_ctx_app;
-            g_dirty = 1;
-        } else if (strcmp(label, "Resize") == 0) {
-            g_tile_sizes[g_ctx_app] = g_tile_sizes[g_ctx_app] ? 0 : 1;
-            g_tile_layout_dirty = 1;
-            g_dirty = 1;
-        } else if (strcmp(label, "Move Left") == 0 && slot > 0) {
-            int tmp = g_tile_order[slot];
-            g_tile_order[slot] = g_tile_order[slot - 1];
-            g_tile_order[slot - 1] = tmp;
-            g_tile_layout_dirty = 1;
-            g_dirty = 1;
-        } else if (strcmp(label, "Move Right") == 0 && slot < NUM_APPS - 1) {
-            int tmp = g_tile_order[slot];
-            g_tile_order[slot] = g_tile_order[slot + 1];
-            g_tile_order[slot + 1] = tmp;
-            g_tile_layout_dirty = 1;
-            g_dirty = 1;
-        } else if (strcmp(label, "Send to Front") == 0) {
-            int tmp = g_tile_order[slot];
-            for (int i = slot; i > 0; i--)
-                g_tile_order[i] = g_tile_order[i - 1];
-            g_tile_order[0] = tmp;
-            g_tile_layout_dirty = 1;
-            g_dirty = 1;
-        } else if (strcmp(label, "Send to End") == 0) {
-            int tmp = g_tile_order[slot];
-            for (int i = slot; i < NUM_APPS - 1; i++)
-                g_tile_order[i] = g_tile_order[i + 1];
-            g_tile_order[NUM_APPS - 1] = tmp;
-            g_tile_layout_dirty = 1;
             g_dirty = 1;
         }
     } else {
         if (strcmp(label, "Settings") == 0) {
             g_active_app = APP_SETTINGS;
-            g_dirty = 1;
-        } else if (strcmp(label, "Refresh Wallpaper") == 0) {
-            g_wallpaper_style = (g_wallpaper_style + 1) % NUM_WALLPAPERS;
-            bg_valid = 0;
             g_dirty = 1;
         }
     }
@@ -697,268 +677,138 @@ static void draw_context_menu(uint32_t *fb, int fb_w, int fb_h) {
     if (mx + mw > fb_w) mx = fb_w - mw - 4;
     if (my + mh > fb_h) my = fb_h - mh - 4;
     uint32_t col_accent = get_accent_color();
-    uint32_t bg = 0xE0202020;
-    uint32_t border = col_accent;
     uint32_t text_col = 0xFFE0E0E0;
-    uint32_t hover_bg = (col_accent & 0x00FFFFFF) | 0x40000000;
+    uint32_t hover_bg = blend(col_accent, 0x00000000, 60);
 
-    fill_rect(fb, fb_w, fb_h, mx, my, mw, mh, bg);
-    fill_rect(fb, fb_w, fb_h, mx, my, mw, 1, border);
-    fill_rect(fb, fb_w, fb_h, mx, my + mh - 1, mw, 1, border);
-    fill_rect(fb, fb_w, fb_h, mx, my, 1, mh, border);
-    fill_rect(fb, fb_w, fb_h, mx + mw - 1, my, 1, mh, border);
+    /* Glass panel background with rounded corners */
+    uint32_t glass_bg = blend(0xE0202020, 0x00000000, 200);
+    fill_glass_panel(fb, fb_w, fb_h, mx, my, mw, mh, 6, glass_bg, col_accent);
 
     for (int i = 0; i < g_ctx_count; i++) {
         int iy = my + 4 + i * 24;
         if (i == g_ctx_hover)
-            fill_rect(fb, fb_w, fb_h, mx + 2, iy, mw - 4, 24, hover_bg);
+            fill_round_rect(fb, fb_w, fb_h, mx + 2, iy, mw - 4, 24, 4, hover_bg);
         draw_text(fb, fb_w, fb_h, mx + 8, iy + 4, g_ctx_labels[i], text_col);
     }
 }
 
 /* ── Forward declarations ─────────────────────────────────────────────── */
-static void draw_line(uint32_t *fb, uint32_t fb_w, uint32_t fb_h,
-                      int x0, int y0, int x1, int y1, uint32_t color);
 extern void draw_demoapp(uint32_t *fb, uint32_t w, uint32_t h);
 extern int demo_hit_test(int mx, int my, int w);
 
+/* ── Zirvium logo (procedural from logo.svg) ──────────────────────────── */
+static void draw_zirvium_logo(uint32_t *fb, uint32_t fb_w, uint32_t fb_h,
+                              int cx, int cy, int size, uint32_t color) {
+    int bar_h = size / 12;
+    if (bar_h < 1) bar_h = 1;
+    struct { int y_off; int half_w; } bars[] = {
+        {-24, 4}, {-16, 10}, {-8, 16}, {0, 22}, {8, 16}, {16, 10}, {24, 4},
+    };
+    for (int i = 0; i < 7; i++) {
+        int y = cy + bars[i].y_off * size / 64;
+        int hw = bars[i].half_w * size / 64;
+        if (hw < 1) hw = 1;
+        uint32_t c = (i == 2 || i == 4) ? 0xFF4488FF : color;
+        fill_rect(fb, fb_w, fb_h, cx - hw, y - bar_h / 2, hw * 2, bar_h, c);
+    }
+}
+
 /* ── Procedural app icons ─────────────────────────────────────────────── */
-static void draw_icon(uint32_t *fb, uint32_t fb_w, uint32_t fb_h,
-                      int cx, int cy, int size, int icon_type, uint32_t color) {
-    switch (icon_type) {
-        case ICON_TERMINAL: {
-            int s = size / 4;
-            fill_rect(fb, fb_w, fb_h, cx - s, cy - s, s * 2, s * 2, 0xFF1A1A2E);
-            draw_char(fb, fb_w, fb_h, cx - 4, cy - 4, '>', color);
-            draw_char(fb, fb_w, fb_h, cx + 4, cy - 4, '_', color);
-            break;
-        }
-        case ICON_CALC: {
-            int dot = size / 8;
-            if (dot < 2) dot = 2;
-            int gap = dot + 2;
-            int start_x = cx - gap;
-            int start_y = cy - gap;
-            for (int r = 0; r < 3; r++) {
-                for (int c = 0; c < 3; c++) {
-                    int px = start_x + c * gap;
-                    int py = start_y + r * gap;
-                    fill_rect(fb, fb_w, fb_h, px, py, dot, dot, color);
-                }
-            }
-            break;
-        }
-        case ICON_SETTINGS: {
-            int r = size / 3;
-            for (int i = 0; i < 4; i++) {
-                int angle = i * 90;
-                (void)angle;
-            }
-            fill_rect(fb, fb_w, fb_h, cx - r / 2, cy - r/6, r, r/3, color);
-            fill_rect(fb, fb_w, fb_h, cx - r/6, cy - r / 2, r/3, r, color);
-            int cir = size / 5;
-            int cir2 = size / 8;
-            for (int dy = -cir; dy <= cir; dy++) {
-                for (int dx = -cir; dx <= cir; dx++) {
-                    if (dx * dx + dy * dy <= cir * cir && dx * dx + dy * dy >= cir2 * cir2) {
-                        int px = cx + dx, py = cy + dy;
-                        if (px >= 0 && py >= 0 && px < (int)fb_w && py < (int)fb_h)
-                            fb[(uint32_t)py * fb_w + (uint32_t)px] = color;
-                    }
-                }
-            }
-            break;
-        }
-        case ICON_CLOCK: {
-            int r = size / 3;
-            for (int dy = -r; dy <= r; dy++) {
-                for (int dx = -r; dx <= r; dx++) {
-                    if (dx * dx + dy * dy <= r * r && dx * dx + dy * dy >= (r - 2) * (r - 2)) {
-                        int px = cx + dx, py = cy + dy;
-                        if (px >= 0 && py >= 0 && px < (int)fb_w && py < (int)fb_h)
-                            fb[(uint32_t)py * fb_w + (uint32_t)px] = color;
-                    }
-                }
-            }
-            fill_rect(fb, fb_w, fb_h, cx - 1, cy - r / 2, 2, r / 2 + 2, color);
-            fill_rect(fb, fb_w, fb_h, cx, cy, r / 3, 2, color);
-            break;
-        }
-        case ICON_EDITOR: {
-            int s = size / 3;
-            draw_line(fb, fb_w, fb_h, cx - s, cy - s, cx - s, cy + s, color);
-            draw_line(fb, fb_w, fb_h, cx + s, cy - s, cx + s, cy + s, color);
-            for (int i = -1; i <= 1; i++)
-                draw_line(fb, fb_w, fb_h, cx - s + 1, cy + i * s / 2, cx + s - 1, cy + i * s / 2, color);
-            break;
-        }
-        case ICON_SNAKE: {
-            int s = size / 4;
-            fill_rect(fb, fb_w, fb_h, cx - s, cy, s * 2, s, color);
-            fill_rect(fb, fb_w, fb_h, cx - s, cy - s * 2, s * 2, s, color);
-            fill_rect(fb, fb_w, fb_h, cx + s, cy - s * 2, s, s * 3, color);
-            fill_rect(fb, fb_w, fb_h, cx - s, cy - s, s, s, color);
-            break;
-        }
-        case ICON_PONG: {
-            int s = size / 4;
-            fill_rect(fb, fb_w, fb_h, cx - s * 3, cy - s * 2, s / 2, s * 4, color);
-            fill_rect(fb, fb_w, fb_h, cx + s * 3 - s / 2, cy - s * 2, s / 2, s * 4, color);
-            fill_rect(fb, fb_w, fb_h, cx - s / 4, cy - s / 4, s / 2, s / 2, color);
-            break;
-        }
-        case ICON_TETRIS: {
-            int s = size / 5;
-            fill_rect(fb, fb_w, fb_h, cx - s, cy - s * 2, s * 2, s, color);
-            fill_rect(fb, fb_w, fb_h, cx - s, cy - s, s, s * 3, color);
-            fill_rect(fb, fb_w, fb_h, cx, cy, s * 2, s, color);
-            fill_rect(fb, fb_w, fb_h, cx + s, cy + s, s * 2, s, color);
-            break;
-        }
-        case ICON_DEMO: {
-            int r = size / 3;
-            for (int dy = -r; dy <= r; dy++) {
-                for (int dx = -r; dx <= r; dx++) {
-                    if (dx * dx + dy * dy <= r * r) {
-                        int px = cx + dx, py = cy + dy;
-                        if (px >= 0 && py >= 0 && px < (int)fb_w && py < (int)fb_h)
-                            fb[(uint32_t)py * fb_w + (uint32_t)px] = color;
-                    }
-                }
-            }
-            draw_line(fb, fb_w, fb_h, cx - r/2, cy - r/2, cx + r/2, cy + r/2, 0xFF1A1A2E);
-            draw_line(fb, fb_w, fb_h, cx + r/2, cy - r/2, cx - r/2, cy + r/2, 0xFF1A1A2E);
-            break;
-        }
-        default:
-            break;
+/* draw_icon wrapper removed — call ztk_draw_icon directly */
+
+/* ── Global top panel (always visible) ──────────────────────────────── */
+static void draw_top_panel(uint32_t *fb, uint32_t w, uint32_t h, int app_active) {
+    fill_rect(fb, w, h, 0, 0, (int)w, PANEL_H, UI26_BG2);
+    uint32_t accent = get_accent_color();
+
+    if (app_active && g_active_app >= 0) {
+        int bs = 18;
+        int bx = 8, by = (PANEL_H - bs) / 2;
+        if (g_back_hover)
+            fill_rect(fb, w, h, bx - 2, by - 2, bs + 4, bs + 4, blend(accent, 0x00000000, 100));
+        const char *an = g_apps[g_active_app].name;
+        int nw = (int)strlen(an) * (FONT_W + 1);
+        draw_text(fb, w, h, (int)w / 2 - nw / 2, (PANEL_H - FONT_H) / 2, an, UI26_TEXT);
+    } else {
+        uint32_t mc = g_menu_active ? blend(accent, 0x00000000, 120) : 0;
+        if (g_menu_active)
+            fill_rect(fb, w, h, 8, 0, MENU_W - 16, PANEL_H, mc);
+        draw_text(fb, w, h, 12, (PANEL_H - FONT_H) / 2, "Zirvium", accent);
     }
+
+    struct datetime dt;
+    char tb[6];
+    if (getdatetime(&dt) == 0) {
+        tb[0] = '0' + dt.hour / 10;
+        tb[1] = '0' + dt.hour % 10;
+        tb[2] = ':';
+        tb[3] = '0' + dt.minute / 10;
+        tb[4] = '0' + dt.minute % 10;
+        tb[5] = '\0';
+    } else { strcpy(tb, "--:--"); }
+    int cx = (int)w - 20 - 5 * (FONT_W + 1);
+    draw_text(fb, w, h, cx, (PANEL_H - FONT_H) / 2, tb, UI26_TEXT_DIM);
+    uint32_t pwr_c = g_power_hover ? 0xFF774444 : 0xFF553333;
+    fill_rect(fb, w, h, cx - 22, (PANEL_H - 14) / 2, 16, 14, pwr_c);
+    draw_text(fb, w, h, cx - 20, (PANEL_H - FONT_H) / 2, "x", UI26_TEXT_DIM);
 }
 
-static void draw_line(uint32_t *fb, uint32_t fb_w, uint32_t fb_h,
-                      int x0, int y0, int x1, int y1, uint32_t color) {
-    ztk_fb_draw_line(fb, fb_w, fb_h, x0, y0, x1, y1, color);
-}
-
-/* ── Background rendering ─────────────────────────────────────────────── */
-static void render_bg(uint32_t *fb, uint32_t w, uint32_t h) {
-    if (bg_valid) {
-        memcpy(fb, bg_cache, w * h * 4);
-        return;
+/* ── GNOME 2 app menu (dropdown below panel) ────────────────────────── */
+static void draw_app_menu(uint32_t *fb, uint32_t w, uint32_t h) {
+    if (!g_menu_active) return;
+    uint32_t accent = get_accent_color();
+    int mh = NUM_APPS * MENU_ITEM_H + 8;
+    int mx = 8, my = PANEL_H;
+    int mw = MENU_W;
+    if (my + mh > (int)h) my = (int)h - mh;
+    uint32_t mcol = blend(0xE016162A, 0x00000000, 200);
+    fill_round_rect(fb, w, h, mx, my, mw, mh, 6, mcol);
+    for (int i = 0; i < NUM_APPS; i++) {
+        int iy = my + 4 + i * MENU_ITEM_H;
+        if (i == g_menu_hover)
+            fill_rect(fb, w, h, mx + 2, iy, mw - 4, MENU_ITEM_H, blend(accent, 0x00000000, 60));
+        uint32_t ic = (i == g_menu_hover) ? UI26_TEXT : UI26_TEXT_DIM;
+        draw_text(fb, w, h, mx + 10, iy + (MENU_ITEM_H - FONT_H) / 2, g_apps[i].name, ic);
     }
-    int wp = g_wallpaper_style;
-    if (wp < 0) wp = 0;
-    if (wp >= NUM_WALLPAPERS) wp = 0;
-    const uint8_t *wc = wallpaper_colors[wp];
-    for (uint32_t y = 0; y < h; y++) {
-        if (g_dark_theme) {
-            uint32_t top_h = h * 2 / 3;
-            uint32_t c;
-            if (y < top_h) {
-                uint8_t r = (uint8_t)(wc[0] + ((int)(wc[3] - wc[0]) * (int)y) / (int)top_h);
-                uint8_t g = (uint8_t)(wc[1] + ((int)(wc[4] - wc[1]) * (int)y) / (int)top_h);
-                uint8_t b = (uint8_t)(wc[2] + ((int)(wc[5] - wc[2]) * (int)y) / (int)top_h);
-                c = 0xFF000000u | ((uint32_t)r << 16) | ((uint32_t)g << 8) | b;
-            } else {
-                uint32_t dy = y - top_h;
-                uint32_t bh = h - top_h;
-                uint8_t r = (uint8_t)(wc[3] + ((int)(wc[6] - wc[3]) * (int)dy) / (int)bh);
-                uint8_t g = (uint8_t)(wc[4] + ((int)(wc[7] - wc[4]) * (int)dy) / (int)bh);
-                uint8_t b = (uint8_t)(wc[5] + ((int)(wc[8] - wc[5]) * (int)dy) / (int)bh);
-                c = 0xFF000000u | ((uint32_t)r << 16) | ((uint32_t)g << 8) | b;
-            }
-            for (uint32_t x = 0; x < w; x++)
-                fb[y * w + x] = c;
-        } else {
-            uint8_t v = (uint8_t)(0xD0 + ((0xF0 - 0xD0) * y) / h);
-            uint32_t c = 0xFF000000u | ((uint32_t)v << 16) | ((uint32_t)v << 8) | (uint32_t)v;
-            for (uint32_t x = 0; x < w; x++)
-                fb[y * w + x] = c;
-        }
-    }
-    if (!bg_valid) {
-        memcpy(bg_cache, fb, w * h * 4);
-        bg_valid = 1;
-    }
-}
-
-/* ── Start screen tiles ────────────────────────────────────────────────── */
-static void draw_tile(uint32_t *fb, uint32_t w, uint32_t h,
-                      int slot, int hovered) {
-    int app = g_tile_order[slot];
-    int tx, ty, tw, th;
-    get_tile_rect(slot, &tx, &ty, &tw, &th);
-    uint32_t color = g_apps[app].color;
-    if (hovered) color = blend(0x44FFFFFF, color, 40);
-    fill_rect(fb, w, h, tx, ty, tw, th, color);
-
-    int icon_size = tw / 3;
-    int icon_cx = tx + tw / 2;
-    int icon_cy = ty + th / 2 - 6;
-    draw_icon(fb, w, h, icon_cx, icon_cy, icon_size, g_apps[app].icon, METRO_TEXT);
-
-    int name_y = ty + th - FONT_H - 6;
-    const char *name = g_apps[app].name;
-    int name_w = (int)strlen(name) * (FONT_W + 1);
-    draw_text(fb, w, h, tx + (tw - name_w * g_font_scale) / 2, name_y, name, METRO_TEXT);
 }
 
 static void draw_start_screen(uint32_t *fb, uint32_t w, uint32_t h) {
-    render_bg(fb, w, h);
-
-    for (int slot = 0; slot < NUM_APPS; slot++) {
-        int app = g_tile_order[slot];
-        if (g_anim.active && g_anim.opening && g_anim.app_idx == app) continue;
-        if (g_anim.active && !g_anim.opening && g_anim.app_idx == app) {
-            int anim_slot = app_slot(app);
-            if (anim_slot < 0) { draw_tile(fb, w, h, slot, 0); continue; }
-            int tw = (int)w, th = (int)h;
-            int tx = 0, ty = 0;
-            int progress = (g_anim.frame * 256) / g_anim_frames;
-            int eased = smoothstep(256 - progress);
-            int cx = g_anim.tile_x + (tx - g_anim.tile_x) * eased / 256;
-            int cy = g_anim.tile_y + (ty - g_anim.tile_y) * eased / 256;
-            int cw = g_anim.tile_w + (tw - g_anim.tile_w) * eased / 256;
-            int ch = g_anim.tile_h + (th - g_anim.tile_h) * eased / 256;
-            uint32_t color = g_apps[app].color;
-            fill_rect(fb, w, h, cx, cy, cw, ch, color);
-            int icon_size = cw / 3;
-            draw_icon(fb, w, h, cx + cw / 2, cy + ch / 2 - 8, icon_size, g_apps[app].icon, METRO_TEXT);
-            int name_y = cy + ch - FONT_H - 8;
-            const char *name = g_apps[app].name;
-            int name_w = (int)strlen(name) * (FONT_W + 1);
-            draw_text(fb, w, h, cx + (cw - name_w * g_font_scale) / 2, name_y, name, METRO_TEXT);
-        } else {
-            draw_tile(fb, w, h, slot, g_tile_hover == slot);
-        }
-    }
+    fill_rect(fb, w, h, 0, 0, (int)w, (int)h, UI26_BG);
+    draw_top_panel(fb, w, h, 0);
+    draw_app_menu(fb, w, h);
 }
 
 /* ── App renderers ────────────────────────────────────────────────────── */
 static void draw_terminal(uint32_t *fb, uint32_t w, uint32_t h) {
-    fill_rect(fb, w, h, 0, 0, (int)w, (int)h, 0xFF0D0D1A);
-    int y = TITLEBAR_H + 10;
-    int max_lines = ((int)h - TITLEBAR_H - 10) / (FONT_H + 2);
+    fill_rect(fb, w, h, 0, 0, (int)w, (int)h, UI26_BG);
+    /* Accent sweep line below title bar */
+    uint32_t accent = get_accent_color();
+    fill_rect(fb, w, h, 0, TITLEBAR_H, (int)w, 1, blend(accent, 0x00000000, 80));
+    int y = TITLEBAR_H + 12;
+    int max_lines = ((int)h - TITLEBAR_H - 14) / (FONT_H + 2);
     int start = (g_term.scroll_count > max_lines)
                 ? g_term.scroll_count - max_lines : 0;
     for (int i = start; i < g_term.scroll_count; i++) {
-        draw_text(fb, w, h, 12, y, g_term.scroll[i], 0xFF00FF00);
+        uint32_t tc = (g_term.scroll[i][0] == '>') ? accent : 0xFF00CC66;
+        draw_text(fb, w, h, 12, y, g_term.scroll[i], tc);
         y += FONT_H + 2;
     }
 
-    /* Prompt + input line */
+    /* Prompt + input line with rounded input area */
     char prompt[280];
     int plen = snprintf(prompt, sizeof(prompt), "zirvium:~$ %s",
                         g_term.input);
     if (plen < 0 || plen >= (int)sizeof(prompt)) plen = (int)sizeof(prompt) - 1;
     prompt[plen] = '\0';
-    draw_text(fb, w, h, 12, y, prompt, 0xFF00FF00);
+    int input_h = FONT_H + 4;
+    fill_round_rect(fb, w, h, 8, y - 2, (int)w - 16, input_h, 4, 0xFF1A1A30);
+    draw_text(fb, w, h, 14, y, prompt, 0xFF00CC66);
 
     /* Cursor */
     int cw = (int)strlen("zirvium:~$ ") * (FONT_W + 1);
     int ci = (int)strlen(g_term.input);
-    int cx = 12 + (cw + ci * (FONT_W + 1)) * g_font_scale;
-    fill_rect(fb, w, h, cx, y, 6 * g_font_scale, FONT_H * g_font_scale, 0xFF00FF00);
+    int cx = 14 + (cw + ci * (FONT_W + 1)) * g_font_scale;
+    fill_rect(fb, w, h, cx, y, 6 * g_font_scale, FONT_H * g_font_scale, accent);
 }
 
 static void calc_reset(void) {
@@ -1007,7 +857,7 @@ static void calc_press(char btn) {
 }
 
 static void draw_calculator(uint32_t *fb, uint32_t w, uint32_t h) {
-    uint32_t bg = 0xFF1A1A2E;
+    uint32_t bg = UI26_SURFACE;
     uint32_t display_bg = 0xFF0D0D1A;
     uint32_t btn_bg = 0xFF2A2A4E;
     uint32_t btn_op = 0xFF1E3A5F;
@@ -1045,7 +895,8 @@ static void draw_calculator(uint32_t *fb, uint32_t w, uint32_t h) {
         {"",   0, 0, 0, 0},
     };
 
-    fill_rect(fb, w, h, 4, TITLEBAR_H + 10, (int)w - 8, 60, display_bg);
+    fill_round_rect(fb, w, h, 4, TITLEBAR_H + 10, (int)w - 8, 60, 8, display_bg);
+    fill_rect(fb, w, h, 4, TITLEBAR_H + 68, (int)w - 8, 1, 0xFF333355);
     draw_text(fb, w, h, 16, TITLEBAR_H + 28, g_calc.disp_str, 0xFF00FF88);
 
     int num_btns = (int)(sizeof(buttons) / sizeof(buttons[0])) - 1;
@@ -1055,16 +906,16 @@ static void draw_calculator(uint32_t *fb, uint32_t w, uint32_t h) {
         int bww = buttons[i].wide ? bw * 2 : bw;
         int hovered = (g_calc_btn_hover == i);
         uint32_t bc = hovered ? btn_hov : buttons[i].color;
-        fill_rect(fb, w, h, bx + 2, by + 2, bww - 4, bh - 4, bc);
+        fill_round_rect(fb, w, h, bx + 2, by + 2, bww - 4, bh - 4, 6, bc);
         int lx = bx + (bww - (int)strlen(buttons[i].label) * (FONT_W + 1)) / 2;
         int ly = by + (bh - FONT_H) / 2;
-        draw_text(fb, w, h, lx, ly, buttons[i].label, METRO_TEXT);
+        draw_text(fb, w, h, lx, ly, buttons[i].label, UI26_TEXT);
     }
 }
 
 /* ── Clock App ──────────────────────────────────────────────────────────── */
 static void draw_clock_app(uint32_t *fb, uint32_t w, uint32_t h) {
-    uint32_t bg = g_dark_theme ? 0xFF1A1A2E : 0xFFE8E8F0;
+    uint32_t bg = g_dark_theme ? UI26_BG : 0xFFE8E8F0;
     fill_rect(fb, w, h, 0, TITLEBAR_H, (int)w, (int)h - TITLEBAR_H, bg);
     struct datetime dt;
     if (getdatetime(&dt) == 0) {
@@ -1080,14 +931,16 @@ static void draw_clock_app(uint32_t *fb, uint32_t w, uint32_t h) {
         time_str[8] = '\0';
         int saved_scale = g_font_scale;
         g_font_scale = 4;
-        draw_text(fb, w, h, 24, TITLEBAR_H + 60, time_str, get_accent_color());
+        uint32_t accent = get_accent_color();
+        draw_text(fb, w, h, 24, TITLEBAR_H + 60, time_str, accent);
         g_font_scale = saved_scale;
         char date_str[32];
         snprintf(date_str, 32, "%04d-%02d-%02d", dt.year, dt.month, dt.day);
-        draw_text(fb, w, h, 24, TITLEBAR_H + 160, date_str,
-                  g_dark_theme ? METRO_TEXT_DIM : 0xFF666666);
+        fill_round_rect(fb, w, h, 24, TITLEBAR_H + 130, 160, 40, 8, blend(accent, 0x00000000, 100));
+        draw_text(fb, w, h, 36, TITLEBAR_H + 140, date_str,
+                  UI26_TEXT);
     } else {
-        draw_text(fb, w, h, 24, TITLEBAR_H + 60, "No RTC", METRO_TEXT);
+        draw_text(fb, w, h, 24, TITLEBAR_H + 60, "No RTC", UI26_TEXT);
     }
 }
 
@@ -1105,39 +958,46 @@ static int setting_row_y(int row) {
 static void draw_toggle_row(uint32_t *fb, uint32_t w, uint32_t row,
                             const char *label, const char *val, uint32_t val_color) {
     int y = setting_row_y(row);
-    fill_rect(fb, w, g_info.height, 24, y, (int)w - 48, SETTING_ROW_H, 0xFF222244);
-    draw_text(fb, w, g_info.height, 36, y + (SETTING_ROW_H - FONT_H) / 2, label, METRO_TEXT);
+    fill_round_rect(fb, w, g_info.height, 24, y, (int)w - 48, SETTING_ROW_H, 6, 0xFF222244);
+    draw_text(fb, w, g_info.height, 36, y + (SETTING_ROW_H - FONT_H) / 2, label, UI26_TEXT);
     draw_text(fb, w, g_info.height, (int)w - 120, y + (SETTING_ROW_H - FONT_H) / 2, val, val_color);
+    /* Subtle right arrow indicator */
+    draw_text(fb, w, g_info.height, (int)w - 44, y + (SETTING_ROW_H - FONT_H) / 2, ">", 0xFF555577);
 }
 
 static const char *g_settings_tab_names[4] = {"Display", "Network", "Audio", "About"};
 
 static void draw_settings_tabs(uint32_t *fb, uint32_t w, uint32_t h) {
-    int tw = w / 4;
+    int tw = (int)w / 4;
+    int tab_pad = 6;
     for (int i = 0; i < 4; i++) {
-        int x = i * tw;
-        uint32_t col = (i == g_settings_tab) ? 0xFF3388CC : 0xFF222244;
-        ztk_fb_fill_rect(fb, w, h, x, SETTINGS_TABS_Y, tw, SETTINGS_TAB_H, col);
-        draw_text(fb, w, h, x + (tw - (int)strlen(g_settings_tab_names[i]) * (FONT_W + 1)) / 2,
+        int x = i * tw + tab_pad;
+        int tw_inner = tw - tab_pad * 2;
+        uint32_t col = (i == g_settings_tab) ? blend(0x44FFFFFF, 0xFF3388CC, 100) : 0xFF1E1E38;
+        fill_round_rect(fb, w, h, x, SETTINGS_TABS_Y, tw_inner, SETTINGS_TAB_H, 8, col);
+        draw_text(fb, w, h, x + (tw_inner - (int)strlen(g_settings_tab_names[i]) * (FONT_W + 1)) / 2,
                   SETTINGS_TABS_Y + (SETTINGS_TAB_H - FONT_H) / 2,
-                  g_settings_tab_names[i], METRO_TEXT);
+                  g_settings_tab_names[i], UI26_TEXT);
     }
-    ztk_fb_hline(fb, w, h, 0, SETTINGS_TABS_Y + SETTINGS_TAB_H, w, 0xFF445566);
 }
 
 static void draw_settings(uint32_t *fb, uint32_t w, uint32_t h) {
-    uint32_t bg = g_dark_theme ? 0xFF1A1A2E : 0xFFE8E8F0;
-    uint32_t text_c   = g_dark_theme ? METRO_TEXT : 0xFF222222;
-    uint32_t dim_c    = g_dark_theme ? METRO_TEXT_DIM : 0xFF666666;
+    uint32_t bg = g_dark_theme ? UI26_SURFACE : 0xFFE8E8F0;
+    uint32_t text_c   = g_dark_theme ? UI26_TEXT : 0xFF222222;
+    uint32_t dim_c    = g_dark_theme ? UI26_TEXT_DIM : 0xFF666666;
     uint32_t accent_c = get_accent_color();
     uint32_t green_c  = 0xFF44CC44;
-    uint32_t bar_bg   = g_dark_theme ? 0xFF333355 : 0xFFCCCCDD;
+    uint32_t bar_bg   = g_dark_theme ? 0xFF2A2A48 : 0xFFCCCCDD;
 
     fill_rect(fb, w, h, 0, TITLEBAR_H, (int)w, (int)h - TITLEBAR_H, bg);
     draw_settings_tabs(fb, w, h);
 
     int bar_x = 160, bar_w = (int)w - 200;
     int slid_y, fill;
+
+    /* Section header */
+    uint32_t section_col = blend(accent_c, 0x00000000, 80);
+    fill_rect(fb, w, h, 24, SETTINGS_TABS_Y + SETTINGS_TAB_H + 4, 4, 20, section_col);
 
     switch (g_settings_tab) {
     case 0: { /* Display tab */
@@ -1149,54 +1009,46 @@ static void draw_settings(uint32_t *fb, uint32_t w, uint32_t h) {
 
         /* Row 1: Accent Color */
         r = 1;
-        int ay = setting_row_y(r);
-        fill_rect(fb, w, g_info.height, 24, ay, (int)w - 48, SETTING_ROW_H, 0xFF222244);
-        draw_text(fb, w, g_info.height, 36, ay + (SETTING_ROW_H - FONT_H) / 2, "Accent Color", text_c);
-        int swatch_x = (int)w - 140;
-        int swatch_y = ay + (SETTING_ROW_H - 14) / 2;
-        fill_rect(fb, w, g_info.height, swatch_x, swatch_y, 14, 14, accent_colors[g_accent_color]);
-        fill_rect(fb, w, g_info.height, swatch_x, swatch_y, 14, 1, 0x88FFFFFF);
-        fill_rect(fb, w, g_info.height, swatch_x, swatch_y, 1, 14, 0x88FFFFFF);
-        fill_rect(fb, w, g_info.height, swatch_x + 13, swatch_y, 1, 14, 0x44000000);
-        fill_rect(fb, w, g_info.height, swatch_x, swatch_y + 13, 14, 1, 0x44000000);
-        draw_text(fb, w, g_info.height, swatch_x + 20, ay + (SETTING_ROW_H - FONT_H) / 2,
-                  accent_names[g_accent_color], accent_c);
-
-        /* Row 2: Animation Speed */
-        r = 2;
         {
-            const char *speed_name;
-            if (g_anim_frames <= 5) speed_name = "Fast";
-            else if (g_anim_frames >= 20) speed_name = "Smooth";
-            else speed_name = "Medium";
-            draw_toggle_row(fb, w, r, "Animation", speed_name, accent_c);
+            int ay = setting_row_y(r);
+            fill_round_rect(fb, w, g_info.height, 24, ay, (int)w - 48, SETTING_ROW_H, 6, 0xFF222244);
+            draw_text(fb, w, g_info.height, 36, ay + (SETTING_ROW_H - FONT_H) / 2, "Accent Color", text_c);
+            int swatch_x = (int)w - 120;
+            int swatch_y = ay + (SETTING_ROW_H - 14) / 2;
+            fill_rect(fb, w, g_info.height, swatch_x, swatch_y, 14, 14, accent_colors[g_accent_color]);
+            fill_rect(fb, w, g_info.height, swatch_x, swatch_y, 14, 1, 0xAAFFFFFF);
+            fill_rect(fb, w, g_info.height, swatch_x, swatch_y, 1, 14, 0xAAFFFFFF);
+            draw_text(fb, w, g_info.height, swatch_x + 20, ay + (SETTING_ROW_H - FONT_H) / 2,
+                      accent_names[g_accent_color], accent_c);
+            draw_text(fb, w, g_info.height, (int)w - 44, ay + (SETTING_ROW_H - FONT_H) / 2, ">", 0xFF555577);
         }
 
-        /* Row 3: Font Style */
-        r = 3;
+        /* Row 2: Font Style */
+        r = 2;
         draw_toggle_row(fb, w, r, "Font Style",
                         g_font_style ? "Bold" : "Regular", accent_c);
 
-        /* Row 4: Font Size */
-        r = 4;
+        /* Row 3: Font Size */
+        r = 3;
         draw_toggle_row(fb, w, r, "Font Size",
                         g_font_scale > 1 ? "Large" : "Small", accent_c);
 
-        /* Row 5: Dark Theme */
-        r = 5;
+        /* Row 4: Dark Theme */
+        r = 4;
         draw_toggle_row(fb, w, r, "Dark Theme",
                         g_dark_theme ? "On" : "Off", g_dark_theme ? green_c : dim_c);
 
         /* Row 6: Brightness slider */
         r = 6;
         slid_y = setting_row_y(r) + (SETTING_ROW_H - 16) / 2;
+        fill_round_rect(fb, w, h, 24, setting_row_y(r), (int)w - 48, SETTING_ROW_H, 6, 0xFF222244);
         draw_text(fb, w, h, 36, slid_y + (16 - FONT_H) / 2, "Brightness", text_c);
-        fill_rect(fb, w, h, bar_x, slid_y, bar_w, 16, bar_bg);
+        fill_round_rect(fb, w, h, bar_x, slid_y, bar_w, 16, 4, bar_bg);
         fill = bar_w * g_brightness / 100;
-        if (fill > 0) fill_rect(fb, w, h, bar_x, slid_y, fill, 16, accent_c);
+        if (fill > 0) fill_round_rect(fb, w, h, bar_x, slid_y, fill, 16, 4, accent_c);
         char bri[8];
         snprintf(bri, sizeof(bri), "%d%%", g_brightness);
-        draw_text(fb, w, h, bar_x + fill - 16, slid_y + (16 - FONT_H) / 2, bri, METRO_TEXT);
+        draw_text(fb, w, h, bar_x + 4, slid_y + (16 - FONT_H) / 2, bri, UI26_TEXT);
 
         /* Row 7: Frame Rate */
         r = 7;
@@ -1206,38 +1058,52 @@ static void draw_settings(uint32_t *fb, uint32_t w, uint32_t h) {
     }
     case 1: { /* Network tab */
         int r = 0;
-        draw_toggle_row(fb, w, r, "Wi-Fi",
-                        g_wifi_on ? "On" : "Off", g_wifi_on ? green_c : dim_c);
+        fill_round_rect(fb, w, h, 24, setting_row_y(r), (int)w - 48, SETTING_ROW_H, 6, 0xFF222244);
+        draw_text(fb, w, h, 36, setting_row_y(r) + (SETTING_ROW_H - FONT_H) / 2, "Wi-Fi", text_c);
+        draw_text(fb, w, h, (int)w - 120, setting_row_y(r) + (SETTING_ROW_H - FONT_H) / 2,
+                  g_wifi_on ? "On" : "Off", g_wifi_on ? green_c : dim_c);
         r = 1;
-        draw_toggle_row(fb, w, r, "Bluetooth",
-                        g_bt_on ? "On" : "Off", g_bt_on ? green_c : dim_c);
+        fill_round_rect(fb, w, h, 24, setting_row_y(r), (int)w - 48, SETTING_ROW_H, 6, 0xFF222244);
+        draw_text(fb, w, h, 36, setting_row_y(r) + (SETTING_ROW_H - FONT_H) / 2, "Bluetooth", text_c);
+        draw_text(fb, w, h, (int)w - 120, setting_row_y(r) + (SETTING_ROW_H - FONT_H) / 2,
+                  g_bt_on ? "On" : "Off", g_bt_on ? green_c : dim_c);
         break;
     }
     case 2: { /* Audio tab */
         int r = 0;
+        fill_round_rect(fb, w, h, 24, setting_row_y(r), (int)w - 48, SETTING_ROW_H, 6, 0xFF222244);
         slid_y = setting_row_y(r) + (SETTING_ROW_H - 16) / 2;
         draw_text(fb, w, h, 36, slid_y + (16 - FONT_H) / 2, "Volume", text_c);
-        fill_rect(fb, w, h, bar_x, slid_y, bar_w, 16, bar_bg);
+        fill_round_rect(fb, w, h, bar_x, slid_y, bar_w, 16, 4, bar_bg);
         fill = bar_w * g_volume / 100;
-        if (fill > 0) fill_rect(fb, w, h, bar_x, slid_y, fill, 16, accent_c);
+        if (fill > 0) fill_round_rect(fb, w, h, bar_x, slid_y, fill, 16, 4, accent_c);
         char vol[8];
         snprintf(vol, sizeof(vol), "%d%%", g_volume);
-        draw_text(fb, w, h, bar_x + fill - 16, slid_y + (16 - FONT_H) / 2, vol, METRO_TEXT);
+        draw_text(fb, w, h, bar_x + 4, slid_y + (16 - FONT_H) / 2, vol, UI26_TEXT);
         break;
     }
     case 3: { /* About tab */
+        int logo_size = 80;
+        int logo_cx = 56 + logo_size / 2;
+        int logo_cy = setting_row_y(0) + SETTING_ROW_H / 2;
+        fill_round_rect(fb, w, h, 24, setting_row_y(0), (int)w - 48, 100, 8, 0xFF1A1A30);
+        draw_zirvium_logo(fb, w, h, logo_cx, logo_cy, logo_size, accent_c);
         int r = 0;
-        draw_text(fb, w, h, 36, setting_row_y(r) + (SETTING_ROW_H - FONT_H) / 2,
-                  "Zirvium OS v0.1.0", dim_c);
+        draw_text(fb, w, h, logo_cx + logo_size / 2 + 12,
+                  setting_row_y(r) + (10),
+                  "Zirvium OS v0.1.0", text_c);
         r = 1;
-        draw_text(fb, w, h, 36, setting_row_y(r) + (SETTING_ROW_H - FONT_H) / 2,
+        draw_text(fb, w, h, logo_cx + logo_size / 2 + 12,
+                  setting_row_y(r) + (10),
                   "DisplayJet MAEM compositor", dim_c);
         r = 2;
-        draw_text(fb, w, h, 36, setting_row_y(r) + (SETTING_ROW_H - FONT_H) / 2,
+        draw_text(fb, w, h, logo_cx + logo_size / 2 + 12,
+                  setting_row_y(r) + (10),
                   "Kernel: MOSIX x86_64", dim_c);
         r = 3;
-        draw_text(fb, w, h, 36, setting_row_y(r) + (SETTING_ROW_H - FONT_H) / 2,
-                  "Font: 8x13 bitmap (Regular / Bold)", dim_c);
+        draw_text(fb, w, h, logo_cx + logo_size / 2 + 12,
+                  setting_row_y(r) + (10),
+                  "UI26 design language", dim_c);
         break;
     }
     }
@@ -1245,19 +1111,23 @@ static void draw_settings(uint32_t *fb, uint32_t w, uint32_t h) {
 
 /* ── Text Editor ───────────────────────────────────────────────────────── */
 static void draw_editor(uint32_t *fb, uint32_t w, uint32_t h) {
-    fill_rect(fb, w, h, 0, TITLEBAR_H, (int)w, (int)h - TITLEBAR_H, 0xFF1A1A2E);
+    fill_rect(fb, w, h, 0, TITLEBAR_H, (int)w, (int)h - TITLEBAR_H, UI26_BG);
     int rows = ((int)h - TITLEBAR_H - 20) / (FONT_H + 4);
     int start_row = g_editor.scroll_row;
     int end_row = start_row + rows;
     if (end_row > g_editor.num_lines) end_row = g_editor.num_lines;
     int y = TITLEBAR_H + 10;
     for (int r = start_row; r < end_row; r++) {
-        uint32_t c = (r == g_editor.row) ? 0xFF2A2A4E : 0xFF222244;
-        fill_rect(fb, w, h, 8, y, (int)w - 16, FONT_H + 4, c);
-        draw_text(fb, w, h, 12, y + 1, g_editor.lines[r], METRO_TEXT);
+        uint32_t c = (r == g_editor.row) ? 0xFF2A2A4E : 0xFF1A1A30;
+        fill_round_rect(fb, w, h, 8, y, (int)w - 16, FONT_H + 4, 4, c);
+        /* Line number gutter */
+        char line_no[8];
+        snprintf(line_no, 8, "%2d", r + 1);
+        draw_text(fb, w, h, 12, y + 1, line_no, 0xFF555588);
+        draw_text(fb, w, h, 36, y + 1, g_editor.lines[r], UI26_TEXT);
         /* cursor on active row */
         if (r == g_editor.row) {
-            int cx = 12 + g_editor.col * (FONT_W + 1);
+            int cx = 36 + g_editor.col * (FONT_W + 1);
             fill_rect(fb, w, h, cx, y + 1, 2, FONT_H, 0xFF88CCFF);
         }
         y += FONT_H + 5;
@@ -1267,64 +1137,74 @@ static void draw_editor(uint32_t *fb, uint32_t w, uint32_t h) {
 /* ── Snake ──────────────────────────────────────────────────────────────── */
 #define SNAKE_CELL 10
 static void draw_snake(uint32_t *fb, uint32_t w, uint32_t h) {
-    fill_rect(fb, w, h, 0, TITLEBAR_H, (int)w, (int)h - TITLEBAR_H, 0xFF0A0A1E);
+    fill_rect(fb, w, h, 0, TITLEBAR_H, (int)w, (int)h - TITLEBAR_H, UI26_BG);
     int ox = ((int)w - SNAKE_COLS * SNAKE_CELL) / 2;
     int oy = TITLEBAR_H + ((int)h - TITLEBAR_H - SNAKE_ROWS * SNAKE_CELL) / 2;
-    /* grid */
+    /* Grid background */
+    fill_round_rect(fb, w, h, ox - 4, oy - 4, SNAKE_COLS * SNAKE_CELL + 8,
+                    SNAKE_ROWS * SNAKE_CELL + 8, 6, 0xFF111133);
     for (int y = 0; y < SNAKE_ROWS; y++) {
         for (int x = 0; x < SNAKE_COLS; x++) {
-            fill_rect(fb, w, h, ox + x * SNAKE_CELL, oy + y * SNAKE_CELL,
-                      SNAKE_CELL - 1, SNAKE_CELL - 1, 0xFF111133);
+            fill_rect(fb, w, h, ox + x * SNAKE_CELL + 1, oy + y * SNAKE_CELL + 1,
+                      SNAKE_CELL - 2, SNAKE_CELL - 2, 0xFF181840);
         }
     }
     /* food */
-    fill_rect(fb, w, h, ox + g_snake.food_x * SNAKE_CELL, oy + g_snake.food_y * SNAKE_CELL,
-              SNAKE_CELL - 1, SNAKE_CELL - 1, 0xFFE74C3C);
+    fill_round_rect(fb, w, h, ox + g_snake.food_x * SNAKE_CELL + 1,
+                    oy + g_snake.food_y * SNAKE_CELL + 1,
+                    SNAKE_CELL - 2, SNAKE_CELL - 2, 3, 0xFFE74C3C);
     /* snake */
     for (int i = 0; i < g_snake.seg_len; i++) {
-        uint32_t sc = (i == 0) ? 0xFF2ECC71 : 0xFF27AE60;
-        fill_rect(fb, w, h, ox + g_snake.seg_x[i] * SNAKE_CELL, oy + g_snake.seg_y[i] * SNAKE_CELL,
-                  SNAKE_CELL - 1, SNAKE_CELL - 1, sc);
+        uint32_t sc = (i == 0) ? 0xFF2ECC71 : 0xFF1A8C4A;
+        fill_round_rect(fb, w, h, ox + g_snake.seg_x[i] * SNAKE_CELL + 1,
+                        oy + g_snake.seg_y[i] * SNAKE_CELL + 1,
+                        SNAKE_CELL - 2, SNAKE_CELL - 2, 3, sc);
     }
     /* score */
     char buf[32];
     snprintf(buf, 32, "Score: %d", g_snake.score);
-    draw_text(fb, w, h, 8, TITLEBAR_H + 6, buf, METRO_TEXT);
+    draw_text(fb, w, h, 8, TITLEBAR_H + 6, buf, UI26_TEXT);
     if (g_snake.gameover) {
-        draw_text(fb, w, h, (int)w / 2 - 40, (int)h / 2 - 6, "GAME OVER", 0xFFE74C3C);
-        draw_text(fb, w, h, (int)w / 2 - 48, (int)h / 2 + 12, "Press R to restart", METRO_TEXT_DIM);
+        fill_glass_panel(fb, w, h, (int)w / 2 - 70, (int)h / 2 - 30, 140, 60, 8, 0xCC111122, 0xFF4488FF);
+        draw_text(fb, w, h, (int)w / 2 - 40, (int)h / 2 - 12, "GAME OVER", 0xFFE74C3C);
+        draw_text(fb, w, h, (int)w / 2 - 56, (int)h / 2 + 8, "Press R to restart", UI26_TEXT);
     }
 }
 
 /* ── Pong ───────────────────────────────────────────────────────────────── */
 static void draw_pong(uint32_t *fb, uint32_t w, uint32_t h) {
-    fill_rect(fb, w, h, 0, TITLEBAR_H, (int)w, (int)h - TITLEBAR_H, 0xFF0A0A1E);
+    fill_rect(fb, w, h, 0, TITLEBAR_H, (int)w, (int)h - TITLEBAR_H, UI26_BG);
     int cw = (int)w;
     int ch = (int)h - TITLEBAR_H;
     int mid_x = cw / 2;
     int mid_y = TITLEBAR_H + ch / 2;
-    /* center line */
-    fill_rect(fb, w, h, mid_x - 1, TITLEBAR_H, 2, ch, 0xFF222244);
+    /* dashed center line */
+    for (int dy = TITLEBAR_H + 10; dy < (int)h - 10; dy += 20) {
+        fill_rect(fb, w, h, mid_x - 1, dy, 2, 10, 0xFF333355);
+    }
     /* ball */
     int bx = (int)(g_pong.ball_x * cw);
     int by = (int)(g_pong.ball_y * ch) + TITLEBAR_H;
-    fill_rect(fb, w, h, bx - 4, by - 4, 8, 8, 0xFFFFFFFF);
+    fill_round_rect(fb, w, h, bx - 4, by - 4, 8, 8, 4, 0xFFFFFFFF);
     /* player paddle */
     int ppy = (int)(g_pong.paddle_y * ch) + TITLEBAR_H;
-    fill_rect(fb, w, h, 12, ppy - 25, 6, 50, 0xFF3498DB);
+    fill_round_rect(fb, w, h, 10, ppy - 28, 8, 56, 4, 0xFF3498DB);
     /* AI paddle */
-    int apy = (int)(g_pong.ball_y * ch) + TITLEBAR_H - 25;
+    int apy = (int)(g_pong.ball_y * ch) + TITLEBAR_H - 28;
     if (apy < TITLEBAR_H) apy = TITLEBAR_H;
-    int amax = (int)h - 50;
+    int amax = (int)h - 56;
     if (apy > amax) apy = amax;
-    fill_rect(fb, w, h, cw - 18, apy, 6, 50, 0xFFE74C3C);
+    fill_round_rect(fb, w, h, cw - 18, apy, 8, 56, 4, 0xFFE74C3C);
     /* score */
     char buf[16];
-    snprintf(buf, 16, "%d  %d", g_pong.player_score, g_pong.ai_score);
-    draw_text(fb, w, h, mid_x - 20, TITLEBAR_H + 10, buf, METRO_TEXT);
+    snprintf(buf, 16, "%d", g_pong.player_score);
+    draw_text(fb, w, h, mid_x - 60, TITLEBAR_H + 15, buf, 0xFF3498DB);
+    snprintf(buf, 16, "%d", g_pong.ai_score);
+    draw_text(fb, w, h, mid_x + 44, TITLEBAR_H + 15, buf, 0xFFE74C3C);
     if (g_pong.gameover) {
-        draw_text(fb, w, h, mid_x - 40, mid_y - 10, "GAME OVER", 0xFFE74C3C);
-        draw_text(fb, w, h, mid_x - 48, mid_y + 12, "Press R to restart", METRO_TEXT_DIM);
+        fill_glass_panel(fb, w, h, mid_x - 70, mid_y - 30, 140, 60, 8, 0xCC111122, 0xFF4488FF);
+        draw_text(fb, w, h, mid_x - 40, mid_y - 12, "GAME OVER", 0xFFE74C3C);
+        draw_text(fb, w, h, mid_x - 56, mid_y + 8, "Press R to restart", UI26_TEXT);
     }
 }
 
@@ -1406,16 +1286,21 @@ static void tetris_drop(void) {
 }
 
 static void draw_tetris(uint32_t *fb, uint32_t w, uint32_t h) {
-    fill_rect(fb, w, h, 0, TITLEBAR_H, (int)w, (int)h - TITLEBAR_H, 0xFF0A0A1E);
+    fill_rect(fb, w, h, 0, TITLEBAR_H, (int)w, (int)h - TITLEBAR_H, UI26_BG);
     int ox = ((int)w - TETRIS_COLS * TETRIS_CELL) / 2;
     int oy = TITLEBAR_H + ((int)h - TITLEBAR_H - TETRIS_ROWS * TETRIS_CELL) / 2;
-    /* grid */
+    int rr = TETRIS_CELL / 4;
+    if (rr < 2) rr = 2;
+    if (rr > 4) rr = 4;
+    /* Game board background */
+    fill_round_rect(fb, w, h, ox - 4, oy - 4, TETRIS_COLS * TETRIS_CELL + 8,
+                    TETRIS_ROWS * TETRIS_CELL + 8, 6, 0xFF111133);
     for (int r = 0; r < TETRIS_ROWS; r++) {
         for (int c = 0; c < TETRIS_COLS; c++) {
             int idx = (int)g_tetris.grid[r][c] - 1;
-            uint32_t col = (idx >= 0 && idx < 7) ? (uint32_t)tetris_colors[idx] : 0xFF111133;
-            fill_rect(fb, w, h, ox + c * TETRIS_CELL, oy + r * TETRIS_CELL,
-                      TETRIS_CELL - 1, TETRIS_CELL - 1, col);
+            uint32_t col = (idx >= 0 && idx < 7) ? (uint32_t)tetris_colors[idx] : 0xFF181840;
+            fill_round_rect(fb, w, h, ox + c * TETRIS_CELL + 1, oy + r * TETRIS_CELL + 1,
+                            TETRIS_CELL - 2, TETRIS_CELL - 2, rr, col);
         }
     }
     /* current piece */
@@ -1428,31 +1313,34 @@ static void draw_tetris(uint32_t *fb, uint32_t w, uint32_t h) {
                 if (!shape[r][c]) continue;
                 int gx = g_tetris.piece_x + c, gy = g_tetris.piece_y + r;
                 if (gy >= 0 && gy < TETRIS_ROWS && gx >= 0 && gx < TETRIS_COLS)
-                    fill_rect(fb, w, h, ox + gx * TETRIS_CELL, oy + gy * TETRIS_CELL,
-                              TETRIS_CELL - 1, TETRIS_CELL - 1, pc);
+                    fill_round_rect(fb, w, h, ox + gx * TETRIS_CELL + 1, oy + gy * TETRIS_CELL + 1,
+                                    TETRIS_CELL - 2, TETRIS_CELL - 2, rr, pc);
             }
         }
     }
-    /* info */
+    /* info panel */
+    fill_round_rect(fb, w, h, 8, TITLEBAR_H + 4, 100, 52, 6, 0xFF1A1A30);
     char buf[32];
     snprintf(buf, 32, "Score: %d", g_tetris.score);
-    draw_text(fb, w, h, 8, TITLEBAR_H + 6, buf, METRO_TEXT);
+    draw_text(fb, w, h, 16, TITLEBAR_H + 10, buf, UI26_TEXT);
     snprintf(buf, 32, "Lines: %d", g_tetris.lines);
-    draw_text(fb, w, h, 8, TITLEBAR_H + 22, buf, METRO_TEXT_DIM);
-    /* next piece preview */
-    draw_text(fb, w, h, (int)w - 80, TITLEBAR_H + 6, "Next:", METRO_TEXT_DIM);
+    draw_text(fb, w, h, 16, TITLEBAR_H + 28, buf, 0xFF8888CC);
+    /* next piece preview with card */
+    fill_round_rect(fb, w, h, (int)w - 78, TITLEBAR_H + 4, 64, 64, 6, 0xFF1A1A30);
+    draw_text(fb, w, h, (int)w - 70, TITLEBAR_H + 8, "Next", 0xFF555577);
     int nshape[4][4];
     tetris_get_piece(g_tetris.next_piece, 0, nshape);
     uint32_t npc = tetris_colors[g_tetris.next_piece];
-    int nx = (int)w - 72, ny = TITLEBAR_H + 22;
+    int nx = (int)w - 66, ny = TITLEBAR_H + 24;
     for (int r = 0; r < 4; r++)
         for (int c = 0; c < 4; c++)
             if (nshape[r][c])
-                fill_rect(fb, w, h, nx + c * 10, ny + r * 10, 9, 9, npc);
+                fill_round_rect(fb, w, h, nx + c * 12, ny + r * 12, 10, 10, 2, npc);
 
     if (g_tetris.gameover) {
-        draw_text(fb, w, h, (int)w / 2 - 40, (int)h / 2 - 6, "GAME OVER", 0xFFE74C3C);
-        draw_text(fb, w, h, (int)w / 2 - 48, (int)h / 2 + 12, "Press R to restart", METRO_TEXT_DIM);
+        fill_glass_panel(fb, w, h, (int)w / 2 - 70, (int)h / 2 - 30, 140, 60, 8, 0xCC111122, 0xFF4488FF);
+        draw_text(fb, w, h, (int)w / 2 - 40, (int)h / 2 - 12, "GAME OVER", 0xFFE74C3C);
+        draw_text(fb, w, h, (int)w / 2 - 56, (int)h / 2 + 8, "Press R to restart", UI26_TEXT);
     }
 }
 
@@ -1463,168 +1351,75 @@ static app_draw_fn g_app_draw[NUM_APPS] = {
     draw_clock_app, draw_editor, draw_snake, draw_pong, draw_tetris, draw_demoapp,
 };
 
-/* ── Title bar rendering (Metro thin bar at top) ──────────────────────────── */
-static void draw_title_bar(uint32_t *fb, uint32_t w, uint32_t h) {
-    fill_rect(fb, w, h, 0, 0, (int)w, TITLEBAR_H, METRO_BG);
-    fill_rect(fb, w, h, 0, TITLEBAR_H - 1, (int)w, 1, 0xFF333355);
-    uint32_t bc = g_back_hover ? 0xFF555577 : METRO_BACK_BTN;
-    fill_rect(fb, w, h, 4, 4, 60, TITLEBAR_H - 8, bc);
-    draw_text(fb, w, h, 10, (TITLEBAR_H - FONT_H) / 2, "< Back", METRO_TEXT);
-    if (g_active_app >= 0) {
-        draw_text(fb, w, h, (int)w / 2 - ((int)strlen(g_apps[g_active_app].name) * (FONT_W + 1)) / 2,
-                  (TITLEBAR_H - FONT_H) / 2, g_apps[g_active_app].name, METRO_TEXT);
-    }
-}
 
-/* ── Taskbar (visible on start screen) ───────────────────────────────────── */
-static void draw_taskbar(uint32_t *fb, uint32_t w, uint32_t h) {
-    int tb_y = (int)h - TASKBAR_H;
-    fill_rect(fb, w, h, 0, tb_y, (int)w, TASKBAR_H, METRO_TASKBAR);
-    fill_rect(fb, w, h, 0, tb_y, (int)w, 1, 0xFF333355);
-    draw_clock_text(fb, w, h, (int)w - 70, tb_y + (TASKBAR_H - FONT_H) / 2, METRO_TEXT);
-    draw_text(fb, w, h, 10, tb_y + (TASKBAR_H - FONT_H) / 2, "Zirvium", get_accent_color());
 
-    int btn_y = tb_y + 4;
-    int btn_h = TASKBAR_H - 8;
-
-    /* Exit button */
-    int exit_x = (int)w - 195;
-    int exit_w = 55;
-    uint32_t exit_c = g_exit_hover ? 0xFF555577 : 0xFF333355;
-    fill_rect(fb, w, h, exit_x, btn_y, exit_w, btn_h, exit_c);
-    draw_text(fb, w, h, exit_x + (exit_w - 4 * (FONT_W + 1)) / 2,
-              btn_y + (btn_h - FONT_H) / 2, "Exit", METRO_TEXT);
-
-    /* Power button */
-    int pwr_x = (int)w - 135;
-    int pwr_w = 60;
-    uint32_t pwr_c = g_power_hover ? 0xFF553333 : 0xFF333355;
-    fill_rect(fb, w, h, pwr_x, btn_y, pwr_w, btn_h, pwr_c);
-    draw_text(fb, w, h, pwr_x + (pwr_w - 5 * (FONT_W + 1)) / 2,
-              btn_y + (btn_h - FONT_H) / 2, "Power", METRO_TEXT);
-}
-
-/* ── Shutdown confirmation dialog / animation overlay ─────────────────── */
+/* ── Shutdown confirmation dialog ──────────────────────────────────── */
 static void draw_shutdown_overlay(uint32_t *fb, uint32_t w, uint32_t h) {
-    /* Semi-transparent dark overlay */
-    fill_rect(fb, w, h, 0, 0, (int)w, (int)h, 0xAA000000);
-
-    int cx = (int)w / 2;
-    int cy = (int)h / 2;
+    int cx = (int)w / 2, cy = (int)h / 2;
     int dw = 340, dh = 140;
     int dx = cx - dw / 2, dy = cy - dh / 2;
+    uint32_t accent = get_accent_color();
+    fill_glass_panel(fb, w, h, dx, dy, dw, dh, 12, 0xCC151530, accent);
 
-    /* Dialog box background */
-    fill_rect(fb, w, h, dx, dy, dw, dh, METRO_DIALOG_BG);
-    fill_rect(fb, w, h, dx, dy, dw, 2, 0xFF6666AA);
-
-    if (g_confirm_shutdown == 1) {
-        /* ── Confirmation dialog ─────────────────────────────────────── */
-        draw_text(fb, w, h, cx - 36, dy + 24, "Shut down?", METRO_TEXT);
-
-        int btn_w = 90, btn_h = 34;
-        int btn_y = dy + dh - 52;
-
-        /* Yes button */
-        int yes_x = dx + 50;
-        uint32_t yes_c = g_shutdown_yes_hover ? 0xFF553333 : 0xFF444466;
-        fill_rect(fb, w, h, yes_x, btn_y, btn_w, btn_h, yes_c);
-        draw_text(fb, w, h, yes_x + (btn_w - 3 * (FONT_W + 1)) / 2,
-                  btn_y + (btn_h - FONT_H) / 2, "Yes", METRO_TEXT);
-
-        /* No button */
-        int no_x = dx + dw - 50 - btn_w;
-        uint32_t no_c = g_shutdown_no_hover ? 0xFF555577 : 0xFF444466;
-        fill_rect(fb, w, h, no_x, btn_y, btn_w, btn_h, no_c);
-        draw_text(fb, w, h, no_x + (btn_w - 2 * (FONT_W + 1)) / 2,
-                  btn_y + (btn_h - FONT_H) / 2, "No", METRO_TEXT);
-    } else {
-        /* ── Shutting down animation ─────────────────────────────────── */
-        const char *dots[] = {"", ".", "..", "..."};
-        char msg[32];
-        snprintf(msg, sizeof(msg), "Shutting down%s", dots[g_shutdown_dot]);
-        draw_text(fb, w, h, cx - 72, dy + 30, msg, 0xFFFF6666);
-
-        /* Progress bar */
-        int bar_x = dx + 30, bar_y = dy + 70;
-        int bar_w = dw - 60, bar_h = 8;
-        fill_rect(fb, w, h, bar_x, bar_y, bar_w, bar_h, 0xFF333355);
-
-        uint64_t elapsed = uptime() - g_shutdown_start_s;
-        if (elapsed > 5) elapsed = 5;
-        int fill = (int)((uint64_t)bar_w * elapsed / 5);
-        if (fill > 0)
-            fill_rect(fb, w, h, bar_x, bar_y, fill, bar_h, 0xFFCC4444);
-
-        char pct[8];
-        g_font_scale = 1;
-        snprintf(pct, sizeof(pct), "%lu%%", (unsigned long)(elapsed * 100 / 5));
-        draw_text(fb, w, h, cx - 12, bar_y + 14, pct, METRO_TEXT_DIM);
+    draw_text(fb, w, h, cx - 44, dy + 30, "Shut down?", UI26_TEXT);
+    if (g_confirm_shutdown == 2) {
+        char dots[8];
+        int n = g_shutdown_dot % 4;
+        for (int i = 0; i < n; i++) dots[i] = '.';
+        dots[n] = '\0';
+        draw_text(fb, w, h, cx - 20, dy + 60, dots, UI26_TEXT_DIM);
     }
+
+    int btn_x = dx + 50, btn_y = dy + dh - 52;
+    int btn_w = 90, btn_h = 34;
+    uint32_t yes_c = g_shutdown_yes_hover ? blend(0xFF4488FF, accent, 60) : blend(accent, 0x00000000, 80);
+    fill_round_rect(fb, w, h, btn_x, btn_y, btn_w, btn_h, 8, yes_c);
+    draw_text(fb, w, h, btn_x + (btn_w - 3 * (FONT_W + 1)) / 2, btn_y + (btn_h - FONT_H) / 2, "Yes", UI26_TEXT);
+
+    int no_x = dx + dw - 50 - btn_w;
+    uint32_t no_c = g_shutdown_no_hover ? 0xFF444466 : 0xFF2A2A44;
+    fill_round_rect(fb, w, h, no_x, btn_y, btn_w, btn_h, 8, no_c);
+    draw_text(fb, w, h, no_x + (btn_w - 2 * (FONT_W + 1)) / 2, btn_y + (btn_h - FONT_H) / 2, "No", UI26_TEXT);
 }
 
-/* ── Boot splash with Zirvium SVG logo ──────────────────────────────────── */
+/* ── Boot splash with Zirvium vector icon ──────────────────────────────────── */
 static void draw_boot_splash(uint32_t *fb, uint32_t w, uint32_t h) {
-    /* Dark gradient background */
     for (uint32_t y = 0; y < h; y++) {
-        uint8_t r = (uint8_t)(0x0A + ((0x14 - 0x0A) * y) / (h ? h : 1));
-        uint8_t g = (uint8_t)(0x0A + ((0x14 - 0x0A) * y) / (h ? h : 1));
-        uint8_t b = (uint8_t)(0x1E + ((0x3A - 0x1E) * y) / (h ? h : 1));
-        uint32_t c = 0xFF000000u | ((uint32_t)r << 16) | ((uint32_t)g << 8) | b;
+        uint8_t val = (uint8_t)(0x0A + ((0x14 - 0x0A) * y) / (h ? h : 1));
+        uint32_t c = 0xFF000000u | ((uint32_t)val << 16) | ((uint32_t)val << 8) | (uint32_t)(val + 16);
         for (uint32_t x = 0; x < w; x++)
             fb[y * w + x] = c;
     }
 
-    /* SVG logo: 7 horizontal lines from zirvworld logo.svg */
-    int logo_data[7][4] = {
-        {28, 36, 8,  0}, {22, 42, 16, 0}, {16, 48, 24, 1},
-        {10, 54, 32, 0}, {16, 48, 40, 1}, {22, 42, 48, 0}, {28, 36, 56, 0},
-    };
-    int logo_size = (w < h ? w : h) / 5;
-    if (logo_size > 480) logo_size = 480;
-    if (logo_size < 160) logo_size = 160;
-    int scale = logo_size / 64;
+    int icon_size = (w < h ? w : h) / 4;
+    if (icon_size > 300) icon_size = 300;
+    if (icon_size < 80) icon_size = 80;
+    int cx = (int)w / 2;
+    int cy = (int)h / 3 - icon_size / 6;
 
-    int ox = (int)w / 2 - 32 * scale;
-    int oy = (int)h / 3 - 32 * scale;
-    uint32_t light = 0xFFCCCCCCu;
-    uint32_t blue  = 0xFF4488FFu;
-
-    for (int i = 0; i < 7; i++) {
-        int x1 = ox + logo_data[i][0] * scale;
-        int x2 = ox + logo_data[i][1] * scale;
-        int y  = oy + logo_data[i][2] * scale;
-        uint32_t color = logo_data[i][3] ? blue : light;
-        int thick = scale > 2 ? scale * 2 : scale;
-        for (int dy = 0; dy < thick; dy++) {
-            int py = y + dy;
-            if (py < 0 || py >= (int)h) continue;
-            for (int px = x1; px <= x2; px++) {
-                if (px >= 0 && px < (int)w)
-                    fb[(uint32_t)py * w + (uint32_t)px] = color;
-            }
-        }
+    for (int r = icon_size / 2 + 10; r > icon_size / 2; r--) {
+        int alpha = 30 - (icon_size / 2 + 10 - r) * 3;
+        if (alpha < 0) alpha = 0;
+        fill_round_rect(fb, w, h, cx - r, cy - r, r * 2, r * 2, r,
+                        blend(0xFF4488FF, 0x00000000, (uint8_t)alpha));
     }
+    draw_zirvium_logo(fb, w, h, cx, cy, icon_size, 0xFF4488FF);
 
-    /* Title: "Zirvium" scaled */
     int saved_scale = g_font_scale;
     g_font_scale = 3;
     const char *title = "Zirvium";
-    int tlen = 0;
-    while (title[tlen]) tlen++;
+    int tlen = (int)strlen(title);
     int tstep = (FONT_W + 1) * g_font_scale;
     int tx = (int)w / 2 - (tlen * tstep) / 2;
-    int ty = oy + 64 * scale + 20;
+    int ty = cy + icon_size / 2 + 20;
     for (const char *p = title; *p; p++) {
         draw_char_scaled(fb, w, h, tx, ty, *p, 0xFF4488FFu);
         tx += tstep;
     }
 
-    /* Subtitle */
     g_font_scale = 1;
     const char *sub = "MOSIX Operating System";
-    int slen = 0;
-    while (sub[slen]) slen++;
+    int slen = (int)strlen(sub);
     int sstep = (FONT_W + 1) * g_font_scale;
     int sx = (int)w / 2 - (slen * sstep) / 2;
     int sy = ty + (FONT_H + 1) * 3 + 8;
@@ -1634,8 +1429,7 @@ static void draw_boot_splash(uint32_t *fb, uint32_t w, uint32_t h) {
     }
     g_font_scale = saved_scale;
 
-    draw_text(fb, w, h, (int)w / 2 - 80, sy + 24,
-              "Loading...", 0xFF666688u);
+    draw_text(fb, w, h, (int)w / 2 - 80, sy + 24, "Loading...", 0xFF666688u);
 }
 
 /* ── Render one frame ──────────────────────────────────────────────────── */
@@ -1644,81 +1438,19 @@ static void render_frame(void) {
     uint32_t h = g_info.height;
     uint32_t *fb32 = (uint32_t *)compositor_fb;
 
-    if (g_anim.active) {
-        if (g_anim.opening) {
-            draw_start_screen(fb32, w, h);
-            int progress = (g_anim.frame * 256) / g_anim_frames;
-            int eased = smoothstep(progress);
-            int cw = g_anim.tile_w + ((int)w - g_anim.tile_w) * eased / 256;
-            int ch = g_anim.tile_h + ((int)h - g_anim.tile_h) * eased / 256;
-            int cx = g_anim.tile_x + (0 - g_anim.tile_x) * eased / 256;
-            int cy = g_anim.tile_y + (0 - g_anim.tile_y) * eased / 256;
-            uint32_t color = g_apps[g_anim.app_idx].color;
-            fill_rect(fb32, w, h, cx, cy, cw, ch, color);
-            int icon_size = cw / 4;
-            draw_icon(fb32, w, h, cx + cw / 2, cy + ch / 2 - 12, icon_size,
-                      g_apps[g_anim.app_idx].icon, METRO_TEXT);
-            int name_y = cy + ch - FONT_H - 12;
-            const char *name = g_apps[g_anim.app_idx].name;
-            int name_w = (int)strlen(name) * (FONT_W + 1);
-            draw_text(fb32, w, h, cx + (cw - name_w * g_font_scale) / 2, name_y, name, METRO_TEXT);
-            draw_taskbar(fb32, w, h);
-        } else {
-            render_bg(fb32, w, h);
-            int progress = (g_anim.frame * 256) / g_anim_frames;
-            int eased = smoothstep(256 - progress);
-            int cw = g_anim.tile_w + ((int)w - g_anim.tile_w) * eased / 256;
-            int ch = g_anim.tile_h + ((int)h - g_anim.tile_h) * eased / 256;
-            int cx = g_anim.tile_x + (0 - g_anim.tile_x) * eased / 256;
-            int cy = g_anim.tile_y + (0 - g_anim.tile_y) * eased / 256;
-            uint32_t color = g_apps[g_anim.app_idx].color;
-            fill_rect(fb32, w, h, cx, cy, cw, ch, color);
-            int icon_size = cw / 4;
-            draw_icon(fb32, w, h, cx + cw / 2, cy + ch / 2 - 12, icon_size,
-                      g_apps[g_anim.app_idx].icon, METRO_TEXT);
-            int name_y = cy + ch - FONT_H - 12;
-            const char *name = g_apps[g_anim.app_idx].name;
-            int name_w = (int)strlen(name) * (FONT_W + 1);
-            draw_text(fb32, w, h, cx + (cw - name_w * g_font_scale) / 2, name_y, name, METRO_TEXT);
-            draw_taskbar(fb32, w, h);
-        }
-        return;
-    }
-
     if (g_active_app >= 0) {
-        render_bg(fb32, w, h);
-        draw_title_bar(fb32, w, h);
+        fill_rect(fb32, w, h, 0, 0, (int)w, (int)h, UI26_BG);
+        draw_top_panel(fb32, w, h, 1);
         g_app_draw[g_active_app](fb32, w, h);
     } else {
         draw_start_screen(fb32, w, h);
-        draw_taskbar(fb32, w, h);
     }
 
-    /* Shutdown confirmation / animation overlay */
     if (g_confirm_shutdown)
         draw_shutdown_overlay(fb32, w, h);
-
-    /* Context menu overlay */
     if (g_ctx_active)
         draw_context_menu(fb32, w, h);
-
-    /* Drag overlay: draw dragged tile at cursor */
-    if (g_drag_active == 2 && g_drag_app >= 0) {
-        int dw = g_tile_pos_w[g_drag_slot];
-        int dh = g_tile_pos_h[g_drag_slot];
-        int dx = g_drag_cur_x - (dw / 2);
-        int dy = g_drag_cur_y - (dh / 2);
-        uint32_t drag_col = g_apps[g_drag_app].color;
-        drag_col = blend(0x80FFFFFF, drag_col, 40);
-        fill_rect(fb32, w, h, dx, dy, dw, dh, drag_col);
-        int icon_size = dw / 3;
-        draw_icon(fb32, w, h, dx + dw / 2, dy + dh / 2 - 6, icon_size,
-                  g_apps[g_drag_app].icon, METRO_TEXT);
-        int name_y = dy + dh - FONT_H - 6;
-        const char *name = g_apps[g_drag_app].name;
-        int name_w = (int)strlen(name) * (FONT_W + 1);
-        draw_text(fb32, w, h, dx + (dw - name_w * g_font_scale) / 2, name_y, name, METRO_TEXT);
-    }
+    draw_dropdown(fb32, w, h);
 }
 
 /* ── Process mouse events ───────────────────────────────────────────────── */
@@ -1755,10 +1487,9 @@ static const char *calc_btn_labels[] = {
 };
 
 static void process_mouse(void) {
-    int prev_th = g_tile_hover;
+    int prev_mh = g_menu_hover;
     int prev_bh = g_back_hover;
     int prev_cbh = g_calc_btn_hover;
-    int prev_eh = g_exit_hover;
     int prev_ph = g_power_hover;
     int prev_syh = g_shutdown_yes_hover;
     int prev_snh = g_shutdown_no_hover;
@@ -1779,318 +1510,186 @@ static void process_mouse(void) {
         zf_set_cursor(cursor_x, cursor_y);
 
         int left_down = (ev.buttons & 1) && !(prev_buttons & 1);
-        int left_up = !(ev.buttons & 1) && (prev_buttons & 1);
         int right_down = (ev.buttons & 2) && !(prev_buttons & 2);
         prev_buttons = ev.buttons;
 
-        g_tile_hover = -1;
         g_back_hover = 0;
-        g_exit_hover = 0;
         g_power_hover = 0;
-
-        if (g_anim.active) {
-            if (left_down) {
-                g_anim.active = 0;
-                g_anim.frame = g_anim_frames;
-                g_dirty = 1;
-            }
-            continue;
-        }
+        g_menu_hover = -1;
 
         /* ── Shutdown confirmation dialog ───────────────────────────── */
-        if (g_confirm_shutdown == 2) {
-            continue; /* ignore all input during shutdown animation */
-        }
+        if (g_confirm_shutdown == 2) continue;
         if (g_confirm_shutdown == 1) {
             g_shutdown_yes_hover = 0;
             g_shutdown_no_hover = 0;
-
             int cx = (int)ww / 2, cy = (int)wh / 2;
             int dw = 340, dh = 140;
             int dx = cx - dw / 2, dy = cy - dh / 2;
-
             int btn_x = dx + 50, btn_y = dy + dh - 52;
             int btn_w = 90, btn_h = 34;
-            if (point_in(nx, ny, btn_x, btn_y, btn_w, btn_h))
-                g_shutdown_yes_hover = 1;
-
+            if (point_in(nx, ny, btn_x, btn_y, btn_w, btn_h)) g_shutdown_yes_hover = 1;
             int no_x = dx + dw - 50 - btn_w;
-            if (point_in(nx, ny, no_x, btn_y, btn_w, btn_h))
-                g_shutdown_no_hover = 1;
-
-            if (left_down && g_shutdown_yes_hover) {
-                g_confirm_shutdown = 2;
-                g_shutdown_start_s = uptime();
-                g_dirty = 1;
-            }
-            if (left_down && g_shutdown_no_hover) {
-                g_confirm_shutdown = 0;
-                g_dirty = 1;
-            }
+            if (point_in(nx, ny, no_x, btn_y, btn_w, btn_h)) g_shutdown_no_hover = 1;
+            if (left_down && g_shutdown_yes_hover) { g_confirm_shutdown = 2; g_shutdown_start_s = uptime(); g_dirty = 1; }
+            if (left_down && g_shutdown_no_hover) { g_confirm_shutdown = 0; g_dirty = 1; }
             continue;
         }
 
-        if (g_active_app >= 0) {
-            g_back_hover = point_in(nx, ny, 4, 4, 60, TITLEBAR_H - 8);
-            if (g_active_app == APP_CALCULATOR) {
-                calc_hit_test(nx, ny);
-            }
-            if (left_down && g_active_app == APP_DEMO) {
-                if (demo_hit_test(nx, ny, (int)ww))
+        /* ── App menu on start screen ─────────────────────────────────-- */
+        if (g_active_app < 0 && g_menu_active) {
+            int mh = NUM_APPS * MENU_ITEM_H + 8;
+            int mx = 8, my = PANEL_H;
+            int mw = MENU_W;
+            if (point_in(nx, ny, mx, my, mw, mh)) {
+                int item = (ny - my - 4) / MENU_ITEM_H;
+                g_menu_hover = (item >= 0 && item < NUM_APPS) ? item : -1;
+                if (left_down && g_menu_hover >= 0) {
+                    g_active_app = g_menu_hover;
+                    g_menu_active = 0;
                     g_dirty = 1;
+                }
+            } else {
+                if (left_down || right_down) {
+                    g_menu_active = 0;
+                    g_dirty = 1;
+                }
             }
+        }
+
+        /* ── When an app is active ───────────────────────────────────── */
+        if (g_active_app >= 0) {
+            g_back_hover = point_in(nx, ny, 4, 4, 36, PANEL_H - 8);
+            if (g_active_app == APP_CALCULATOR) calc_hit_test(nx, ny);
             if (left_down) {
                 if (g_back_hover) {
-                    if (g_active_app >= 0) {
-                        int tx, ty, tw, th;
-                        get_tile_rect(app_slot(g_active_app), &tx, &ty, &tw, &th);
-                        g_anim.active = 1;
-                        g_anim.opening = 0;
-                        g_anim.app_idx = g_active_app;
-                        g_anim.frame = 0;
-                        g_anim.tile_x = tx; g_anim.tile_y = ty;
-                        g_anim.tile_w = tw; g_anim.tile_h = th;
-                        g_anim.scr_w = (int)ww; g_anim.scr_h = (int)wh;
-                        g_dirty = 1;
-                    }
+                    g_active_app = -1;
+                    g_dirty = 1;
                 } else if (g_active_app == APP_CALCULATOR && g_calc_btn_hover >= 0) {
-                    const char *label = calc_btn_labels[g_calc_btn_hover];
-                    calc_press(label[0]);
+                    calc_press(calc_btn_labels[g_calc_btn_hover][0]);
                     g_dirty = 1;
                 } else if (g_active_app == APP_SETTINGS) {
                     int rw = (int)ww;
                     int bar_x = 160, bar_w = rw - 200;
-
-                    /* Tab bar hit-test */
                     if (ny >= SETTINGS_TABS_Y && ny < SETTINGS_TABS_Y + SETTINGS_TAB_H) {
-                        int tw = rw / 4;
-                        for (int i = 0; i < 4; i++) {
-                            if (nx >= i * tw && nx < (i + 1) * tw) {
-                                g_settings_tab = i;
+                        int stw = rw / 4;
+                        for (int i = 0; i < 4; i++)
+                            if (nx >= i * stw && nx < (i + 1) * stw) { g_settings_tab = i; g_dirty = 1; }
+                    }
+                    if (g_dropdown_active) {
+                        int ddx = nx - g_dropdown_x, ddy = ny - g_dropdown_y;
+                        if (ddx >= 0 && ddx < g_dropdown_w && ddy >= 4 && ddy < g_dropdown_h - 4) {
+                            int sel = (ddy - 4) / g_dropdown_item_h;
+                            if (sel >= 0 && sel < g_dropdown_count) {
+                                switch (g_dropdown_callback) {
+                                case 1: g_wallpaper_style = sel; break;
+                                case 2: g_accent_color = sel; break;
+                                case 3: break;
+                                case 4: g_font_style = sel; break;
+                                case 5: g_font_scale = (sel == 0) ? 1 : 2; break;
+                                }
                                 g_dirty = 1;
                             }
                         }
+                        g_dropdown_active = 0;
+                    } else {
+                        switch (g_settings_tab) {
+                        case 0:
+                            if (point_in(nx, ny, 24, setting_row_y(0), rw - 48, SETTING_ROW_H)) {
+                                static const char *items[] = {"Wave","Sunset","Midnight","Forest","Aurora","Neon"};
+                                dropdown_open(nx, ny, NUM_WALLPAPERS, items, 1); g_dirty = 1;
+                            }
+                            if (point_in(nx, ny, 24, setting_row_y(1), rw - 48, SETTING_ROW_H)) {
+                                dropdown_open(nx, ny, NUM_ACCENTS, accent_names, 2); g_dirty = 1;
+                            }
+                            if (point_in(nx, ny, 24, setting_row_y(3), rw - 48, SETTING_ROW_H)) {
+                                static const char *items[] = {"Regular","Bold"};
+                                dropdown_open(nx, ny, 2, items, 4); g_dirty = 1;
+                            }
+                            if (point_in(nx, ny, 24, setting_row_y(4), rw - 48, SETTING_ROW_H)) {
+                                static const char *items[] = {"Small","Large"};
+                                dropdown_open(nx, ny, 2, items, 5); g_dirty = 1;
+                            }
+                            if (point_in(nx, ny, 24, setting_row_y(5), rw - 48, SETTING_ROW_H)) {
+                                g_dark_theme = !g_dark_theme; g_dirty = 1;
+                            }
+                            if (point_in(nx, ny, bar_x, setting_row_y(6), bar_w, SETTING_ROW_H)) {
+                                int pct = (nx - bar_x) * 100 / bar_w;
+                                if (pct < 0) pct = 0;
+                                if (pct > 100) pct = 100;
+                                g_brightness = pct; g_dirty = 1;
+                            }
+                            if (point_in(nx, ny, 24, setting_row_y(7), rw - 48, SETTING_ROW_H)) {
+                                g_frame_rate = (g_frame_rate == 60) ? 30 : 60; g_dirty = 1;
+                            }
+                            break;
+                        case 1:
+                            if (point_in(nx, ny, 24, setting_row_y(0), rw - 48, SETTING_ROW_H)) { g_wifi_on = !g_wifi_on; g_dirty = 1; }
+                            if (point_in(nx, ny, 24, setting_row_y(1), rw - 48, SETTING_ROW_H)) { g_bt_on = !g_bt_on; g_dirty = 1; }
+                            break;
+                        case 2:
+                            if (point_in(nx, ny, bar_x, setting_row_y(0), bar_w, SETTING_ROW_H)) {
+                                int pct = (nx - bar_x) * 100 / bar_w;
+                                if (pct < 0) pct = 0;
+                                if (pct > 100) pct = 100;
+                                g_volume = pct; g_dirty = 1;
+                            }
+                            break;
+                        }
                     }
-
-                    switch (g_settings_tab) {
-                    case 0: { /* Display tab */
-                        /* Row 0: Wallpaper (cycle) */
-                        if (point_in(nx, ny, 24, setting_row_y(0), rw - 48, SETTING_ROW_H)) {
-                            g_wallpaper_style = (g_wallpaper_style + 1) % NUM_WALLPAPERS;
-                            bg_valid = 0;
-                            g_dirty = 1;
-                        }
-                        /* Row 1: Accent Color (cycle) */
-                        if (point_in(nx, ny, 24, setting_row_y(1), rw - 48, SETTING_ROW_H)) {
-                            g_accent_color = (g_accent_color + 1) % NUM_ACCENTS;
-                            g_dirty = 1;
-                        }
-                        /* Row 2: Animation Speed */
-                        if (point_in(nx, ny, 24, setting_row_y(2), rw - 48, SETTING_ROW_H)) {
-                            if (g_anim_frames <= 5) g_anim_frames = 10;
-                            else if (g_anim_frames >= 20) g_anim_frames = 5;
-                            else g_anim_frames = 20;
-                            g_dirty = 1;
-                        }
-                        /* Row 3: Font Style */
-                        if (point_in(nx, ny, 24, setting_row_y(3), rw - 48, SETTING_ROW_H)) {
-                            g_font_style = g_font_style ? 0 : 1;
-                            g_dirty = 1;
-                        }
-                        /* Row 4: Font Size */
-                        if (point_in(nx, ny, 24, setting_row_y(4), rw - 48, SETTING_ROW_H)) {
-                            g_font_scale = (g_font_scale > 1) ? 1 : 2;
-                            g_dirty = 1;
-                        }
-                        /* Row 5: Dark Theme */
-                        if (point_in(nx, ny, 24, setting_row_y(5), rw - 48, SETTING_ROW_H)) {
-                            g_dark_theme = !g_dark_theme;
-                            bg_valid = 0;
-                            g_dirty = 1;
-                        }
-                        /* Row 6: Brightness slider */
-                        if (point_in(nx, ny, bar_x, setting_row_y(6), bar_w, SETTING_ROW_H)) {
-                            int pct = (nx - bar_x) * 100 / bar_w;
-                            if (pct < 0) pct = 0;
-                            if (pct > 100) pct = 100;
-                            g_brightness = pct;
-                            g_dirty = 1;
-                        }
-                        /* Row 7: Frame Rate */
-                        if (point_in(nx, ny, 24, setting_row_y(7), rw - 48, SETTING_ROW_H)) {
-                            g_frame_rate = (g_frame_rate == 60) ? 30 : 60;
-                            g_dirty = 1;
-                        }
-                        break;
-                    }
-                    case 1: { /* Network tab */
-                        /* Row 0: Wi-Fi */
-                        if (point_in(nx, ny, 24, setting_row_y(0), rw - 48, SETTING_ROW_H)) {
-                            g_wifi_on = !g_wifi_on;
-                            g_dirty = 1;
-                        }
-                        /* Row 1: Bluetooth */
-                        if (point_in(nx, ny, 24, setting_row_y(1), rw - 48, SETTING_ROW_H)) {
-                            g_bt_on = !g_bt_on;
-                            g_dirty = 1;
-                        }
-                        break;
-                    }
-                    case 2: { /* Audio tab */
-                        /* Row 0: Volume slider */
-                        if (point_in(nx, ny, bar_x, setting_row_y(0), bar_w, SETTING_ROW_H)) {
-                            int pct = (nx - bar_x) * 100 / bar_w;
-                            if (pct < 0) pct = 0;
-                            if (pct > 100) pct = 100;
-                            g_volume = pct;
-                            g_dirty = 1;
-                        }
-                        break;
-                    }
-                    case 3: /* About tab — no interactive rows */
-                        break;
-                    }
+                }
+            }
+            if (g_dropdown_active) {
+                int ddx = nx - g_dropdown_x, ddy = ny - g_dropdown_y;
+                if (ddx >= 0 && ddx < g_dropdown_w && ddy >= 4 && ddy < g_dropdown_h - 4) {
+                    int item = (ddy - 4) / g_dropdown_item_h;
+                    g_dropdown_hover = (item >= 0 && item < g_dropdown_count) ? item : -1;
+                } else {
+                    g_dropdown_hover = -1;
+                    if (right_down) { g_dropdown_active = 0; g_dirty = 1; }
                 }
             }
             continue;
         }
 
-        /* ── Context menu interaction ────────────────────────────────────── */
+        /* ── Start screen: context menu ──────────────────────────────── */
         if (g_ctx_active) {
             int mw = 160, mh = g_ctx_count * 24 + 8;
-            int mx = g_ctx_x;
-            int my = g_ctx_y;
+            int mx = g_ctx_x, my = g_ctx_y;
             if (mx + mw > (int)ww) mx = (int)ww - mw - 4;
             if (my + mh > (int)wh) my = (int)wh - mh - 4;
             if (point_in(nx, ny, mx, my, mw, mh)) {
                 int item = (ny - my - 4) / 24;
                 g_ctx_hover = (item >= 0 && item < g_ctx_count) ? item : -1;
-                if (left_down && g_ctx_hover >= 0) {
-                    ctx_execute(g_ctx_hover);
-                    g_dirty = 1;
-                }
+                if (left_down && g_ctx_hover >= 0) { ctx_execute(g_ctx_hover); g_dirty = 1; }
             } else {
                 g_ctx_hover = -1;
-                if (left_down || right_down) {
-                    g_ctx_active = 0;
-                    g_dirty = 1;
-                }
+                if (left_down || right_down) { g_ctx_active = 0; g_dirty = 1; }
             }
             continue;
         }
-
-        /* ── Tile hover ───────────────────────────────────────────────── */
-        for (int slot = 0; slot < NUM_APPS; slot++) {
-            int tx, ty, tw, th;
-            get_tile_rect(slot, &tx, &ty, &tw, &th);
-            if (point_in(nx, ny, tx, ty, tw, th)) {
-                g_tile_hover = slot;
-                break;
-            }
-        }
-
-        /* ── Right-click → context menu ────────────────────────────── */
         if (right_down) {
-            int slot = g_tile_hover;
-            start_context_menu(nx, ny, (slot >= 0) ? g_tile_order[slot] : -1);
+            start_context_menu(nx, ny, -1);
         }
 
-        /* ── Tile drag / open ─────────────────────────────────────────── */
-        if (g_drag_active) {
-            if (left_up) {
-                if (g_drag_active == 1) {
-                    /* Click (no drag) → open app */
-                    int app = g_drag_app;
-                    int slot = app_slot(app);
-                    if (slot >= 0) {
-                        int tx, ty, tw, th;
-                        get_tile_rect(slot, &tx, &ty, &tw, &th);
-                        g_anim.active = 1;
-                        g_anim.opening = 1;
-                        g_anim.app_idx = app;
-                        g_anim.frame = 0;
-                        g_anim.tile_x = tx; g_anim.tile_y = ty;
-                        g_anim.tile_w = tw; g_anim.tile_h = th;
-                        g_anim.scr_w = (int)ww; g_anim.scr_h = (int)wh;
-                        g_active_app = app;
-                        g_dirty = 1;
-                    }
-                } else {
-                    /* Drag complete → swap tiles */
-                    if (g_drag_dst_slot >= 0 && g_drag_dst_slot != g_drag_slot) {
-                        int tmp = g_tile_order[g_drag_slot];
-                        g_tile_order[g_drag_slot] = g_tile_order[g_drag_dst_slot];
-                        g_tile_order[g_drag_dst_slot] = tmp;
-                        g_tile_layout_dirty = 1;
-                        g_dirty = 1;
-                    }
-                }
-                g_drag_active = 0;
-                g_drag_slot = -1;
-                g_drag_dst_slot = -1;
-            } else if (g_drag_active == 1) {
-                int dx = nx - g_drag_cur_x;
-                int dy = ny - g_drag_cur_y;
-                if (dx * dx + dy * dy > 64) {
-                    g_drag_active = 2;
-                    g_dirty = 1;
-                }
-                g_drag_cur_x = nx;
-                g_drag_cur_y = ny;
-            } else if (g_drag_active == 2) {
-                g_drag_cur_x = nx;
-                g_drag_cur_y = ny;
-                g_drag_dst_slot = -1;
-                for (int slot = 0; slot < NUM_APPS; slot++) {
-                    if (slot == g_drag_slot) continue;
-                    int tx, ty, tw, th;
-                    get_tile_rect(slot, &tx, &ty, &tw, &th);
-                    if (point_in(nx, ny, tx, ty, tw, th)) {
-                        g_drag_dst_slot = slot;
-                        break;
-                    }
-                }
-                g_dirty = 1;
-            }
-        } else if (left_down && g_tile_hover >= 0) {
-            /* Start potential drag */
-            g_drag_active = 1;
-            g_drag_slot = g_tile_hover;
-            g_drag_app = g_tile_order[g_tile_hover];
-            g_drag_cur_x = nx;
-            g_drag_cur_y = ny;
-            g_drag_dst_slot = -1;
+        /* ── "Zirvium" label → toggle app menu ──────────────────────── */
+        if (left_down && point_in(nx, ny, 8, 0, 80, PANEL_H)) {
+            g_menu_active = !g_menu_active;
+            g_dirty = 1;
         }
 
-        /* ── Taskbar buttons ─────────────────────────────────────────── */
-        int tb_y = (int)wh - TASKBAR_H;
-        int btn_y = tb_y + 4;
-        int btn_h = TASKBAR_H - 8;
-        int exit_x = (int)ww - 195;
-        int exit_w = 55;
-        if (point_in(nx, ny, exit_x, btn_y, exit_w, btn_h))
-            g_exit_hover = 1;
-        int pwr_x = (int)ww - 135;
-        int pwr_w = 60;
-        if (point_in(nx, ny, pwr_x, btn_y, pwr_w, btn_h))
+        /* ── Power button (top panel, right side) ──────────────────────── */
+        int pwr_x = (int)ww - 20 - 5 * (FONT_W + 1) - 22;
+        if (point_in(nx, ny, pwr_x, (PANEL_H - 14) / 2, 16, 14))
             g_power_hover = 1;
-
-        if (left_down && g_exit_hover) {
-            zf_disconnect();
-            char *argv[] = { "/bin/shell", NULL };
-            char *envp[] = { NULL };
-            execve("/bin/shell", argv, envp);
-            _exit(0);
-        }
         if (left_down && g_power_hover) {
             g_confirm_shutdown = 1;
             g_dirty = 1;
         }
     }
 
-    if (g_tile_hover != prev_th || g_back_hover != prev_bh ||
-        g_calc_btn_hover != prev_cbh || g_exit_hover != prev_eh ||
-        g_power_hover != prev_ph || g_shutdown_yes_hover != prev_syh ||
+    if (g_menu_hover != prev_mh || g_back_hover != prev_bh ||
+        g_calc_btn_hover != prev_cbh || g_power_hover != prev_ph ||
+        g_shutdown_yes_hover != prev_syh ||
         g_shutdown_no_hover != prev_snh)
         g_dirty = 1;
 }
@@ -2319,7 +1918,7 @@ static void process_keys(void) {
                 }
             }
         } else if (ev.keycode == KEY_V) {
-            if (g_active_app == APP_TERMINAL && !g_anim.active) {
+            if (g_active_app == APP_TERMINAL) {
                 g_active_app = -1;
             } else if (g_active_app < 0) {
                 g_active_app = APP_TERMINAL;
@@ -2376,12 +1975,7 @@ int main(void) {
     pong_reset();
     tetris_reset();
 
-    /* Initialize tile order and sizes */
-    for (int i = 0; i < NUM_APPS; i++) {
-        g_tile_order[i] = i;
-        g_tile_sizes[i] = 0;
-    }
-    g_tile_layout_dirty = 1;
+    /* No tile grid initialization needed */
 
     size_t fb_size = (size_t)g_buf.stride * g_buf.height;
 
@@ -2404,19 +1998,6 @@ int main(void) {
         if (g_active_app == APP_SNAKE)  update_snake();
         if (g_active_app == APP_PONG)   update_pong();
         if (g_active_app == APP_TETRIS) update_tetris();
-
-        if (g_anim.active) {
-            g_anim.frame++;
-            if (g_anim.frame >= g_anim_frames) {
-                g_anim.active = 0;
-                if (g_anim.opening) {
-                    g_active_app = g_anim.app_idx;
-                } else {
-                    g_active_app = -1;
-                }
-            }
-            g_dirty = 1;
-        }
 
         /* ── Shutdown animation timing ──────────────────────────────── */
         if (g_confirm_shutdown == 2) {
