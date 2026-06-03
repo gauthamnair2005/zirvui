@@ -39,8 +39,8 @@ LIBC_OBJS := $(patsubst ../libs/zirvlibc/src/%.c,$(LIBC_BUILD)/%.o,$(LIBC_SRCS))
 ZIRVFLUX_LIB := ../zirvflux/libzirvflux.a
 ZIRVTK_LIB    := ../zirvtk/target/release/libzirvtk.a
 
-SRCS := src/main.c src/demoapp.c src/crt0.asm src/stubs.c
-OBJS := src/main.o src/demoapp.o src/crt0.o src/stubs.o
+SRCS := src/main.c src/crt0.asm src/stubs.c
+OBJS := src/main.o src/crt0.o src/stubs.o
 
 TARGET := zirvui.elf
 
@@ -64,7 +64,7 @@ $(LIBC_BUILD)/%.o: ../libs/zirvlibc/src/%.c
 $(ZIRVTK_LIB): zirvtk
 
 zirvtk:
-	ZIRVFLUX_DIR=../zirvflux RUSTFLAGS="-C panic=abort" cargo build --release --no-default-features --manifest-path ../zirvtk/Cargo.toml
+	ZIRVFLUX_DIR=../zirvflux RUSTFLAGS="-C panic=abort" cargo build --release --no-default-features --features alloc --manifest-path ../zirvtk/Cargo.toml
 
 clean:
 	rm -f $(TARGET) $(OBJS)
