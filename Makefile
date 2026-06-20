@@ -15,8 +15,7 @@ CFLAGS := \
     -mno-mmx -mno-sse -mno-sse2 \
     -Wall -Wextra -O2 \
     -I../libs/zirvlibc/include \
-    -I../zirvflux/include \
-    -I../zirvtk/include
+    -I../zirvflux/include
 
 LDFLAGS := \
     -nostdlib \
@@ -37,18 +36,17 @@ LIBC_BUILD := ../build/zirvui-libc
 LIBC_OBJS := $(patsubst ../libs/zirvlibc/src/%.c,$(LIBC_BUILD)/%.o,$(LIBC_SRCS))
 
 ZIRVFLUX_LIB := ../zirvflux/libzirvflux.a
-ZIRVTK_LIB    := ../zirvtk/target/release/libzirvtk.a
 
-SRCS := src/main.c src/crt0.asm src/stubs.c
-OBJS := src/main.o src/crt0.o src/stubs.o
+SRCS := src/main.c src/compositor.c src/canvas.c src/crt0.asm
+OBJS := src/main.o src/compositor.o src/canvas.o src/crt0.o
 
 TARGET := zirvui.elf
 
-.PHONY: all clean zirvtk
+.PHONY: all clean
 
 all: $(TARGET)
 
-$(TARGET): $(OBJS) $(LIBC_OBJS) $(ZIRVFLUX_LIB) $(ZIRVTK_LIB)
+$(TARGET): $(OBJS) $(LIBC_OBJS) $(ZIRVFLUX_LIB)
 	$(CC) $(LDFLAGS) -o $@ $^
 
 %.o: %.c
@@ -60,11 +58,6 @@ $(TARGET): $(OBJS) $(LIBC_OBJS) $(ZIRVFLUX_LIB) $(ZIRVTK_LIB)
 $(LIBC_BUILD)/%.o: ../libs/zirvlibc/src/%.c
 	@mkdir -p $(@D)
 	$(CC) $(CFLAGS) -c -o $@ $<
-
-$(ZIRVTK_LIB): zirvtk
-
-zirvtk:
-	ZIRVFLUX_DIR=../zirvflux RUSTFLAGS="-C panic=abort" cargo build --release --no-default-features --features alloc --manifest-path ../zirvtk/Cargo.toml
 
 clean:
 	rm -f $(TARGET) $(OBJS)

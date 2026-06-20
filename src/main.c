@@ -1,9 +1,8 @@
-/* ZirvUI — Futuristic Desktop Environment for Zirvium OS
- * Rewritten from scratch with Rust-based ZirvTK compositor.
- */
+/* ZirvUI — Native compositor for Zirvium OS */
 
-#include <zirvtk.h>
+#include "compositor.h"
 
-int main(void) {
-    return ztk_desktop_run();
+int main(void)
+{
+    return compositor_run();
 }
