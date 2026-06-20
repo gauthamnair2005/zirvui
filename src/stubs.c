@@ -15,3 +15,8 @@ int bcmp(const void *s1, const void *s2, unsigned long n) {
    never called with panic=abort, but still referenced. */
 void rust_eh_personality(void) {
 }
+
+/* _Unwind_Resume — unwinding resume routine;
+   never called with panic=abort, but still referenced by alloc crate. */
+void _Unwind_Resume(void) {
+}

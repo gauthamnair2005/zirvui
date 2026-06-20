@@ -49,7 +49,7 @@ TARGET := zirvui.elf
 all: $(TARGET)
 
 $(TARGET): $(OBJS) $(LIBC_OBJS) $(ZIRVFLUX_LIB) $(ZIRVTK_LIB)
-	$(LD) $(LDFLAGS) -o $@ $^
+	$(CC) $(LDFLAGS) -o $@ $^
 
 %.o: %.c
 	$(CC) $(CFLAGS) -c -o $@ $<
