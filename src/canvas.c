@@ -91,14 +91,44 @@ void canvas_draw_char(uint32_t *fb, uint32_t fb_w, uint32_t fb_h, int x, int y, 
 void canvas_draw_char_aa(uint32_t *fb, uint32_t fb_w, uint32_t fb_h, int x, int y, uint8_t c, uint32_t color, uint8_t aa_level)
 {
     (void)aa_level;
-    canvas_draw_char(fb, fb_w, fb_h, x, y, c, color);
+    int idx = (int)c - FONT_FIRST_CHAR;
+    if (idx < 0 || idx >= FONT_NUM_GLYPHS) idx = 0;
+    const uint8_t *glyph = font_8x13[idx];
+    for (int row = 0; row < FONT_H; row++) {
+        int py = y + row;
+        if (py < 0 || (uint32_t)py >= fb_h) continue;
+        uint32_t *row_p = fb + (uint32_t)py * fb_w;
+        for (int col = 0; col < FONT_W; col++) {
+            int px = x + col;
+            if (px < 0 || (uint32_t)px >= fb_w) continue;
+            if (!(glyph[row] & (1 << (7 - col)))) continue;
+            int covered = 0, total = 0;
+            for (int dr = -1; dr <= 1; dr++) {
+                int nr = row + dr;
+                if (nr < 0 || nr >= FONT_H) continue;
+                uint8_t nb = glyph[nr];
+                for (int dc = -1; dc <= 1; dc++) {
+                    int nc = col + dc;
+                    if (nc < 0 || nc >= FONT_W) continue;
+                    if (nb & (1 << (7 - nc))) covered++;
+                    total++;
+                }
+            }
+            if (total > 0 && covered < total) {
+                uint8_t a = (uint8_t)((covered * 255) / total);
+                row_p[px] = canvas_blend(color, row_p[px], a);
+            } else {
+                row_p[px] = color;
+            }
+        }
+    }
 }
 
 void canvas_draw_text(uint32_t *fb, uint32_t fb_w, uint32_t fb_h, int x, int y, const uint8_t *text, uint32_t color)
 {
     int cx = x;
     while (*text) {
-        canvas_draw_char(fb, fb_w, fb_h, cx, y, *text, color);
+        canvas_draw_char_aa(fb, fb_w, fb_h, cx, y, *text, color, 3);
         cx += CANVAS_FONT_STEP;
         text++;
     }
@@ -141,7 +171,6 @@ void canvas_fill_round_rect(uint32_t *fb, uint32_t fb_w, uint32_t fb_h, int x, i
     int r = (int)ru;
     if (r <= 0) { canvas_fill_rect(fb, fb_w, fb_h, x, y, rw, rh, color); return; }
     int r2 = r * r;
-    (void)r2;
     for (int row = 0; row < (int)rh; row++) {
         int py = y + row;
         if (py < 0 || (uint32_t)py >= fb_h) continue;
@@ -164,12 +193,90 @@ void canvas_fill_round_rect(uint32_t *fb, uint32_t fb_w, uint32_t fb_h, int x, i
             x0 = x;
             x1 = x + (int)rw - 1;
         }
+        if (x0 < 0 || x1 >= (int)fb_w) {
+            uint32_t *row_p = fb + (uint32_t)py * fb_w;
+            if (x0 < 0 && x0 <= x1) {
+                int dist = -x0;
+                uint8_t a = (uint8_t)(dist < r ? 128 : 255);
+                row_p[0] = canvas_blend(color, row_p[0], a);
+                x0 = 1;
+            }
+            if (x1 >= (int)fb_w && x0 <= x1) {
+                int dist = x1 - ((int)fb_w - 1);
+                uint8_t a = (uint8_t)(dist < r ? 128 : 255);
+                row_p[x1] = canvas_blend(color, row_p[x1], a);
+                x1 = (int)fb_w - 2;
+            }
+        }
         x0 = cnv_max(x0, 0);
         x1 = cnv_min(x1, (int)fb_w - 1);
         if (x0 <= x1) {
             uint32_t *row_p = fb + (uint32_t)py * fb_w;
             for (int px = x0; px <= x1; px++)
                 row_p[px] = color;
+        }
+    }
+    /* Smooth corner edges with coverage alpha using distance from circle */
+    for (int row = 0; row < r && row < (int)rh; row++) {
+        int py = y + row;
+        if (py < 0 || (uint32_t)py >= fb_h) continue;
+        int d = r - row;
+        int ds = d * d;
+        int ins = 0;
+        while ((ins + 1) * (ins + 1) + ds <= r2) ins++;
+        /* Left corner edge */
+        int cx0 = x + r - ins - 1;
+        if (cx0 >= 0 && (uint32_t)cx0 < fb_w) {
+            int dx = r - ins;
+            int dist2 = dx * dx + ds;
+            if (dist2 < r2 + r) {
+                uint32_t *p = &fb[(uint32_t)py * fb_w + (uint32_t)cx0];
+                int excess = r2 - dist2;
+                uint8_t a = (uint8_t)((excess * 255) / (2 * r + 1));
+                if (a < 255) *p = canvas_blend(color, *p, a > 0 ? a : 0);
+            }
+        }
+        /* Right corner edge */
+        int cx1 = x + (int)rw - r + ins;
+        if (cx1 >= 0 && (uint32_t)cx1 < fb_w) {
+            int dx = r - ins;
+            int dist2 = dx * dx + ds;
+            if (dist2 < r2 + r) {
+                uint32_t *p = &fb[(uint32_t)py * fb_w + (uint32_t)cx1];
+                int excess = r2 - dist2;
+                uint8_t a = (uint8_t)((excess * 255) / (2 * r + 1));
+                if (a < 255) *p = canvas_blend(color, *p, a > 0 ? a : 0);
+            }
+        }
+    }
+    for (int row = (int)rh - r; row < (int)rh && row >= 0; row++) {
+        int py = y + row;
+        if (py < 0 || (uint32_t)py >= fb_h) continue;
+        int d = row - ((int)rh - r - 1);
+        int ds = d * d;
+        int ins = 0;
+        while ((ins + 1) * (ins + 1) + ds <= r2) ins++;
+        int cx0 = x + r - ins - 1;
+        if (cx0 >= 0 && (uint32_t)cx0 < fb_w) {
+            int dx = r - ins;
+            int dist2 = dx * dx + ds;
+            if (dist2 < r2 + r) {
+                uint32_t *p = &fb[(uint32_t)py * fb_w + (uint32_t)cx0];
+                int excess = r2 - dist2;
+                uint8_t a = (uint8_t)((excess * 255) / (2 * r + 1));
+                if (a < 255) *p = canvas_blend(color, *p, a > 0 ? a : 0);
+            }
+        }
+        int cx1 = x + (int)rw - r + ins;
+        if (cx1 >= 0 && (uint32_t)cx1 < fb_w) {
+            int dx = r - ins;
+            int dist2 = dx * dx + ds;
+            if (dist2 < r2 + r) {
+                uint32_t *p = &fb[(uint32_t)py * fb_w + (uint32_t)cx1];
+                int excess = r2 - dist2;
+                uint8_t a = (uint8_t)((excess * 255) / (2 * r + 1));
+                if (a < 255) *p = canvas_blend(color, *p, a > 0 ? a : 0);
+            }
         }
     }
 }

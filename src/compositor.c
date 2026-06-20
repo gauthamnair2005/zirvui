@@ -122,6 +122,12 @@ static void raise_win(int idx)
 }
 
 /* ── Draw start button logo (7-bar Z from SVG) ───────────────────── */
+#define LOGO_SS 2
+#define LOGO_BW START_BTN_W
+#define LOGO_BH (TASKBAR_H - 4)
+static uint32_t g_logo_cache[LOGO_BW * LOGO_BH];
+static int g_logo_cached = 0;
+
 static void draw_logo(uint32_t *fb, uint32_t fw, uint32_t fh, int bx, int by)
 {
     (void)fw; (void)fh;
@@ -134,8 +140,61 @@ static void draw_logo(uint32_t *fb, uint32_t fw, uint32_t fh, int bx, int by)
         { 26, 2, 10, 24, 0xFFFFFFFF },
         { 30, 2, 14, 16, 0xFFFFFFFF },
     };
-    for (int i = 0; i < 7; i++)
-        canvas_fill_rect(fb, fw, fh, bx + bars[i].x, by + bars[i].y, bars[i].w, bars[i].h, bars[i].color);
+
+    if (!g_logo_cached) {
+        int sw = LOGO_BW * LOGO_SS, sh = LOGO_BH * LOGO_SS, bw = LOGO_BW, bh = LOGO_BH;
+        static uint32_t tmp[LOGO_SS * LOGO_SS * LOGO_BW * LOGO_BH];
+        for (int i = 0; i < sw * sh; i++) tmp[i] = 0;
+        for (int i = 0; i < 7; i++) {
+            int x0 = bars[i].x * LOGO_SS, y0 = bars[i].y * LOGO_SS;
+            int w = bars[i].w * LOGO_SS, h = bars[i].h * LOGO_SS;
+            uint32_t col = bars[i].color;
+            for (int py = y0; py < y0 + h && py < sh; py++) {
+                uint32_t *row = tmp + (uint32_t)py * sw;
+                for (int px = x0; px < x0 + w && px < sw; px++)
+                    row[px] = col;
+            }
+        }
+        for (int dy = 0; dy < bh; dy++) {
+            for (int dx = 0; dx < bw; dx++) {
+                uint32_t ar = 0, ag = 0, ab = 0;
+                int cnt = 0;
+                for (int sy = 0; sy < LOGO_SS; sy++) {
+                    for (int sx = 0; sx < LOGO_SS; sx++) {
+                        uint32_t c = tmp[(dy * LOGO_SS + sy) * sw + (dx * LOGO_SS + sx)];
+                        ar += (c >> 16) & 0xFF; ag += (c >> 8) & 0xFF; ab += c & 0xFF;
+                        if (c) cnt++;
+                    }
+                }
+                if (cnt > 0) {
+                    uint8_t a = (uint8_t)((cnt * 255) / (LOGO_SS * LOGO_SS));
+                    uint32_t fc = 0xFF000000
+                        | ((uint8_t)((ar + cnt/2) / cnt) << 16)
+                        | ((uint8_t)((ag + cnt/2) / cnt) << 8)
+                        | ((uint8_t)((ab + cnt/2) / cnt));
+                    g_logo_cache[(uint32_t)dy * bw + (uint32_t)dx] = (a << 24) | (fc & 0xFFFFFF);
+                }
+            }
+        }
+        g_logo_cached = 1;
+    }
+
+    for (int dy = 0; dy < LOGO_BH; dy++) {
+        int py = by + dy;
+        if (py < 0 || (uint32_t)py >= fh) continue;
+        uint32_t *row = fb + (uint32_t)py * fw;
+        for (int dx = 0; dx < LOGO_BW; dx++) {
+            int px = bx + dx;
+            if (px < 0 || (uint32_t)px >= fw) continue;
+            uint32_t cached = g_logo_cache[(uint32_t)dy * LOGO_BW + (uint32_t)dx];
+            uint8_t ca = (uint8_t)(cached >> 24);
+            if (ca >= 255) {
+                row[px] = cached;
+            } else if (ca > 0) {
+                row[px] = canvas_blend(cached, row[px], ca);
+            }
+        }
+    }
 }
 
 /* ── Taskbar ─────────────────────────────────────────────────────── */
@@ -242,10 +301,22 @@ static void draw_chrome(Window *w)
     int xm = 4, xw = CLOSE_SIZE - xm * 2;
     for (int i = 0; i < xw; i++) {
         int px = cx + xm + i, py1 = cy + xm + i, py2 = cy + xm + (xw - 1 - i);
-        if (px >= 0 && (uint32_t)px < g_sw && py1 >= 0 && (uint32_t)py1 < g_sh)
-            g_fb[(uint32_t)py1 * g_sw + (uint32_t)px] = CLOSE_X;
-        if (py2 != py1 && px >= 0 && (uint32_t)px < g_sw && py2 >= 0 && (uint32_t)py2 < g_sh)
-            g_fb[(uint32_t)py2 * g_sw + (uint32_t)px] = CLOSE_X;
+        if (px >= 0 && (uint32_t)px < g_sw && py1 >= 0 && (uint32_t)py1 < g_sh) {
+            uint32_t *p = &g_fb[(uint32_t)py1 * g_sw + (uint32_t)px];
+            if (xw > 2 && (i == 0 || i == xw - 1)) {
+                *p = canvas_blend(CLOSE_X, *p, 160);
+            } else {
+                *p = CLOSE_X;
+            }
+        }
+        if (py2 != py1 && px >= 0 && (uint32_t)px < g_sw && py2 >= 0 && (uint32_t)py2 < g_sh) {
+            uint32_t *p = &g_fb[(uint32_t)py2 * g_sw + (uint32_t)px];
+            if (xw > 2 && (i == 0 || i == xw - 1)) {
+                *p = canvas_blend(CLOSE_X, *p, 160);
+            } else {
+                *p = CLOSE_X;
+            }
+        }
     }
 }
 
