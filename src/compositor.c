@@ -7,6 +7,7 @@
 #include <datetime.h>
 #include <dirent.h>
 #include <unistd.h>
+#include <stdlib.h>
 
 /* ── Colours ─────────────────────────────────────────────────────── */
 #define BG_COLOR      0xFF3A6EA5
@@ -30,10 +31,10 @@
 static int cnv_max(int a, int b) { return a > b ? a : b; }
 
 /* ── Buffers and display ─────────────────────────────────────────── */
-static uint32_t g_fb[1024 * 768];
+static uint32_t *g_fb = 0;
 static zf_buffer_t g_buf;
-static uint32_t g_sw = 1024, g_sh = 768;
-static int g_mx = 512, g_my = 384;
+static uint32_t g_sw = 1920, g_sh = 1080;
+static int g_mx = 960, g_my = 540;
 static uint8_t g_prev_btn = 0;
 
 /* ── Windows and apps ────────────────────────────────────────────── */
@@ -57,6 +58,8 @@ static int  click_term(int id, int mx, int my, int btn);
 static void draw_fm(int id, uint32_t *fb, uint32_t fw, uint32_t fh, int x, int y, int w, int h);
 static int  click_fm(int id, int mx, int my, int btn);
 static void draw_about(int id, uint32_t *fb, uint32_t fw, uint32_t fh, int x, int y, int w, int h);
+static void draw_power(int id, uint32_t *fb, uint32_t fw, uint32_t fh, int x, int y, int w, int h);
+static int  click_power(int id, int mx, int my, int btn);
 
 static AppDef g_apps[MAX_APPS] = {
     { "Calculator", 0xFF4488CC, "=",  240, 280, draw_calc,  click_calc,  0 },
@@ -64,8 +67,10 @@ static AppDef g_apps[MAX_APPS] = {
     { "Terminal",   0xFF226622, ">_", 480, 300, draw_term,  click_term,  0 },
     { "Files",      0xFFCC8844, "F",  340, 280, draw_fm,    click_fm,    0 },
     { "About",      0xFF8844AA, "i",  320, 200, draw_about, 0,           0 },
+    { "Shutdown",   0xFFCC3333, "O",  200, 100, draw_power, click_power, 0 },
+    { "Reboot",     0xFFCC8833, "R",  200, 100, draw_power, click_power, 0 },
 };
-static int g_napps = 5;
+static int g_napps = 7;
 
 /* ── Window frame helpers ────────────────────────────────────────── */
 static int frame_x(Window *w)   { return w->x; }
@@ -242,9 +247,16 @@ static void draw_taskbar(void)
         time_len = 5;
     }
     int tw = time_len * CANVAS_FONT_STEP;
-    int tx = (int)g_sw - tw - 10;
+    int tx = (int)g_sw - tw - 32;
     canvas_draw_text(g_fb, g_sw, g_sh, tx, y + (TASKBAR_H - CANVAS_FONT_H) / 2,
                      (const uint8_t *)time_buf, 0xFFFFFFFF);
+
+    /* Power button */
+    int pwr_x = (int)g_sw - 28;
+    uint32_t pwr_col = 0xFFFF5555;
+    canvas_fill_rect(g_fb, g_sw, g_sh, pwr_x, y + 6, 24, TASKBAR_H - 12, pwr_col);
+    canvas_draw_char(g_fb, g_sw, g_sh, pwr_x + 8, y + (TASKBAR_H - CANVAS_FONT_H) / 2,
+                     'O', 0xFFFFFFFF);
 
     /* Start menu */
     if (g_menu_open) {
@@ -661,22 +673,60 @@ static void draw_about(int id, uint32_t *fb, uint32_t fw, uint32_t fh, int x, in
 {
     (void)id; (void)fw; (void)fh; (void)w; (void)h;
     canvas_fill_rect(fb, g_sw, g_sh, x, y, 320, 200, 0xFFFFFFFF);
-    static const uint8_t *lines[] = {
-        (const uint8_t *)"Zirvium OS",
-        (const uint8_t *)"Version 0.1.0",
-        (const uint8_t *)"Architecture: x86_64",
-        (const uint8_t *)"",
-        (const uint8_t *)"Display: 1024x768 @ 32bpp",
-        (const uint8_t *)"Theme: Cascade",
-        (const uint8_t *)"",
-        (const uint8_t *)"Copyright 2026",
+    char disp_buf[48];
+    snprintf(disp_buf, sizeof(disp_buf), "Display: %dx%d @ 32bpp", g_sw, g_sh);
+    static const char *lines_static[] = {
+        "Zirvium OS",
+        "Version 0.1.0",
+        "Architecture: x86_64",
+        "",
+        "",
+        "Theme: Cascade",
+        "",
+        "Copyright 2026",
     };
     int ly = y + 8;
-    for (size_t i = 0; i < sizeof(lines)/sizeof(lines[0]); i++) {
+    for (size_t i = 0; i < 8; i++) {
+        const char *text = lines_static[i];
         uint32_t tc = (i == 0) ? 0xFF225588 : 0xFF444444;
+        if (i == 4) text = disp_buf;
+        canvas_draw_text(fb, g_sw, g_sh, x + 12, ly, (const uint8_t *)text, tc);
+        ly += 16;
+    }
+}
+
+/* ── Apps: Power dialog (Shutdown / Reboot) ───────────────────────── */
+static void draw_power(int id, uint32_t *fb, uint32_t fw, uint32_t fh, int x, int y, int w, int h)
+{
+    (void)fw; (void)fh;
+    canvas_fill_rect(fb, g_sw, g_sh, x, y, (uint32_t)w, (uint32_t)h, 0xFFFFF0F0);
+    canvas_fill_rect(fb, g_sw, g_sh, x, y, (uint32_t)w, (uint32_t)h, 0xFFFFDDDD);
+    static const uint8_t *lines[] = {
+        (const uint8_t *)"Power options",
+        (const uint8_t *)"",
+        (const uint8_t *)"Click to confirm",
+        (const uint8_t *)"or close window",
+    };
+    int ly = y + 8;
+    for (size_t i = 0; i < 4; i++) {
+        uint32_t tc = (i == 0) ? 0xFFCC2222 : 0xFF444444;
         canvas_draw_text(fb, g_sw, g_sh, x + 12, ly, lines[i], tc);
         ly += 16;
     }
+    /* Power icon */
+    canvas_draw_char_scaled(fb, g_sw, g_sh, x + w - 36, y + 8, 'O', 0xFFCC3333, 2);
+}
+
+static int click_power(int id, int mx, int my, int btn)
+{
+    (void)mx; (void)my; (void)btn;
+    if (id >= 0 && id < g_napps) {
+        if (g_apps[id].name[0] == 'S')
+            zf_shutdown();
+        else
+            zf_reboot();
+    }
+    return 1;
 }
 
 /* ── Hit testing ──────────────────────────────────────────────────── */
@@ -703,6 +753,8 @@ static int h_taskbar_btn(int *out_idx)
 {
     int y = (int)g_sh - TASKBAR_H;
     if (g_my < y || g_my >= (int)g_sh) return 0;
+    /* Power button */
+    if (g_mx >= (int)g_sw - 28 && g_mx < (int)g_sw - 4) { *out_idx = -1; return 3; }
     /* Start button */
     if (g_mx >= 2 && g_mx < 2 + START_BTN_W) { *out_idx = -1; return 1; }
     /* App buttons */
@@ -725,6 +777,11 @@ int compositor_run(void)
     zf_display_info_t info;
     if (zf_get_info(&info) != 0 || !info.connected) { printf("[FAIL] No display\n"); return -1; }
     g_sw = info.width; g_sh = info.height;
+    /* Allocate framebuffer dynamically for high-resolution support */
+    if (!g_fb) {
+        g_fb = (uint32_t *)malloc(g_sw * g_sh * 4);
+        if (!g_fb) { printf("[FAIL] FB alloc\n"); return -1; }
+    }
     if (zf_create_buffer(g_sw, g_sh, &g_buf) != 0) { printf("[FAIL] Buffer create\n"); return -1; }
 
     int running = 1;
@@ -794,6 +851,12 @@ int compositor_run(void)
                 if (tb_type == 1) {
                     /* Start button */
                     g_menu_open = !g_menu_open;
+                    continue;
+                }
+                if (tb_type == 3) {
+                    /* Power button - launch shutdown dialog */
+                    g_menu_open = 0;
+                    int idx = launch_app(5); /* Shutdown app */
                     continue;
                 }
                 if (tb_type == 2 && tb_idx >= 0) {

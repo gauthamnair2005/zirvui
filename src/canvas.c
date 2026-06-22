@@ -58,6 +58,27 @@ void canvas_fill_gradient_v(uint32_t *fb, uint32_t fb_w, uint32_t fb_h, int x, i
     }
 }
 
+/* Compute approximate distance to nearest edge for smooth anti-aliasing */
+static int glyph_edge_dist(const uint8_t *glyph, int col, int row, int max_d)
+{
+    int best = max_d;
+    for (int dr = -max_d; dr <= max_d; dr++) {
+        int nr = row + dr;
+        if (nr < 0 || nr >= FONT_H) continue;
+        for (int dc = -max_d; dc <= max_d; dc++) {
+            int nc = col + dc;
+            if (nc < 0 || nc >= FONT_W) continue;
+            int inside = (glyph[nr] & (1 << (7 - nc))) ? 1 : 0;
+            int my_inside = (glyph[row] & (1 << (7 - col))) ? 1 : 0;
+            if (inside != my_inside) {
+                int d = dr * dr + dc * dc;
+                if (d < best) best = d;
+            }
+        }
+    }
+    return best;
+}
+
 void canvas_draw_char(uint32_t *fb, uint32_t fb_w, uint32_t fb_h, int x, int y, uint8_t c, uint32_t color)
 {
     int idx = (int)c - FONT_FIRST_CHAR;
@@ -66,22 +87,18 @@ void canvas_draw_char(uint32_t *fb, uint32_t fb_w, uint32_t fb_h, int x, int y, 
     for (int row = 0; row < FONT_H; row++) {
         int py = y + row;
         if (py < 0 || (uint32_t)py >= fb_h) continue;
-        uint8_t bits = glyph[row];
-        if (bits == 0) continue;
         uint32_t *row_p = fb + (uint32_t)py * fb_w;
         for (int col = 0; col < FONT_W; col++) {
             int px = x + col;
             if (px < 0 || (uint32_t)px >= fb_w) continue;
-            if (bits & (1 << (7 - col))) {
-                int tl = col > 0 && (bits & (1 << (7 - col + 1)));
-                int tr = col < (FONT_W - 1) && (bits & (1 << (7 - col - 1)));
-                int tu = row > 0 && (glyph[row - 1] & (1 << (7 - col)));
-                int td = row < (FONT_H - 1) && (glyph[row + 1] & (1 << (7 - col)));
-                if (tl && tr && tu && td) {
+            if (glyph[row] & (1 << (7 - col))) {
+                int dist = glyph_edge_dist(glyph, col, row, 3);
+                if (dist > 3) {
                     row_p[px] = color;
                 } else {
-                    uint32_t bg = row_p[px];
-                    row_p[px] = canvas_blend(color, bg, 200);
+                    uint8_t alpha = (uint8_t)(200u + (55u * (uint32_t)dist) / 3u);
+                    if (dist == 0) alpha = 160;
+                    row_p[px] = canvas_blend(color, row_p[px], alpha);
                 }
             }
         }
@@ -90,10 +107,13 @@ void canvas_draw_char(uint32_t *fb, uint32_t fb_w, uint32_t fb_h, int x, int y, 
 
 void canvas_draw_char_aa(uint32_t *fb, uint32_t fb_w, uint32_t fb_h, int x, int y, uint8_t c, uint32_t color, uint8_t aa_level)
 {
-    (void)aa_level;
     int idx = (int)c - FONT_FIRST_CHAR;
     if (idx < 0 || idx >= FONT_NUM_GLYPHS) idx = 0;
     const uint8_t *glyph = font_8x13[idx];
+    int range = (int)aa_level;
+    if (range < 1) range = 1;
+    if (range > 3) range = 3;
+    int max_d = range;
     for (int row = 0; row < FONT_H; row++) {
         int py = y + row;
         if (py < 0 || (uint32_t)py >= fb_h) continue;
@@ -102,23 +122,14 @@ void canvas_draw_char_aa(uint32_t *fb, uint32_t fb_w, uint32_t fb_h, int x, int 
             int px = x + col;
             if (px < 0 || (uint32_t)px >= fb_w) continue;
             if (!(glyph[row] & (1 << (7 - col)))) continue;
-            int covered = 0, total = 0;
-            for (int dr = -1; dr <= 1; dr++) {
-                int nr = row + dr;
-                if (nr < 0 || nr >= FONT_H) continue;
-                uint8_t nb = glyph[nr];
-                for (int dc = -1; dc <= 1; dc++) {
-                    int nc = col + dc;
-                    if (nc < 0 || nc >= FONT_W) continue;
-                    if (nb & (1 << (7 - nc))) covered++;
-                    total++;
-                }
-            }
-            if (total > 0 && covered < total) {
-                uint8_t a = (uint8_t)((covered * 255) / total);
-                row_p[px] = canvas_blend(color, row_p[px], a);
-            } else {
+            int dist = glyph_edge_dist(glyph, col, row, max_d);
+            if (dist > max_d) {
                 row_p[px] = color;
+            } else {
+                float a = (float)dist / (float)(max_d + 1);
+                uint8_t alpha = (uint8_t)(a * 255.0f);
+                if (alpha < 40) alpha = 40;
+                row_p[px] = canvas_blend(color, row_p[px], alpha);
             }
         }
     }
@@ -315,6 +326,7 @@ void canvas_draw_char_scaled(uint32_t *fb, uint32_t fb_w, uint32_t fb_h, int x, 
     int sh = (int)scale;
     int fw = FONT_W;
     int fh = FONT_H;
+    int scale2 = sw * sh;
     for (int row = 0; row < fh * sh; row++) {
         int py = y + row;
         if (py < 0 || (uint32_t)py >= fb_h) continue;
@@ -322,12 +334,24 @@ void canvas_draw_char_scaled(uint32_t *fb, uint32_t fb_w, uint32_t fb_h, int x, 
         for (int col = 0; col < fw * sw; col++) {
             int px = x + col;
             if (px < 0 || (uint32_t)px >= fb_w) continue;
-            int sx = col / sw;
-            int sy = row / sh;
-            if (sx >= fw) sx = fw - 1;
-            if (sy >= fh) sy = fh - 1;
-            if (glyph[sy] & (1 << (7 - sx)))
+            /* Sub-pixel coverage: count how many sub-pixels are inside the glyph */
+            int inside = 0;
+            for (int sub_y = 0; sub_y < sh; sub_y++) {
+                int sy = (row * sh + sub_y) / sh;
+                if (sy >= fh) sy = fh - 1;
+                for (int sub_x = 0; sub_x < sw; sub_x++) {
+                    int sx = (col * sw + sub_x) / sw;
+                    if (sx >= fw) sx = fw - 1;
+                    if (glyph[sy] & (1 << (7 - sx)))
+                        inside++;
+                }
+            }
+            if (inside == scale2) {
                 row_p[px] = color;
+            } else if (inside > 0) {
+                uint8_t a = (uint8_t)((inside * 255) / scale2);
+                row_p[px] = canvas_blend(color, row_p[px], a);
+            }
         }
     }
 }
